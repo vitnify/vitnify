@@ -12,10 +12,26 @@ Two integration points:
 """
 from __future__ import annotations
 from typing import TypedDict, Optional
-from langgraph.graph import StateGraph, START, END
-from langchain_core.callbacks import BaseCallbackHandler
 from .react import parse_action, REACT_SYS
 from .events import Kind
+
+try:  # optional dependency: only needed to actually build/run the graph
+    from langgraph.graph import StateGraph, START, END
+    from langchain_core.callbacks import BaseCallbackHandler
+    _IMPORT_ERROR: Exception | None = None
+except ImportError as exc:  # keep the module importable without the extra installed
+    StateGraph = START = END = None  # type: ignore[assignment]
+    BaseCallbackHandler = object  # type: ignore[assignment,misc]
+    _IMPORT_ERROR = exc
+
+
+def _require_langgraph() -> None:
+    """Raise a clear, actionable error if the LangGraph extra is not installed."""
+    if _IMPORT_ERROR is not None:
+        raise ImportError(
+            "vitnium's LangGraph adapter requires 'langgraph' and 'langchain-core'. "
+            'Install them with:  pip install "vitnium[langgraph]"'
+        ) from _IMPORT_ERROR
 
 
 class VRState(TypedDict, total=False):
@@ -32,6 +48,8 @@ def initial_prompt(task: str, tools_desc: str) -> str:
 
 def build_react_graph(session, tools_desc: str, tool_names, max_steps: int = 3, n_new: int = 40):
     """Compile a LangGraph StateGraph wired to a VitniReplay Session."""
+    _require_langgraph()
+
     def agent_node(state: VRState) -> VRState:
         text = session.llm(state["prompt"], n_new=n_new)          # recorded + recomputable
         act = parse_action(text, tool_names)
@@ -62,6 +80,7 @@ class VitniReplayCallback(BaseCallbackHandler):
     """Observability adapter for ANY LangChain/LangGraph agent: records LLM + tool events
     into the session's event log. Record-only (callbacks can't re-inject for replay)."""
     def __init__(self, session):
+        _require_langgraph()
         self.session = session
         self._pending = ("?", "")
 

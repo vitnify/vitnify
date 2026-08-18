@@ -11,6 +11,28 @@ from __future__ import annotations
 import hashlib
 from .events import EventLog, Kind
 
+try:  # optional dependency: needed only to talk to a REAL MCP client/server
+    import mcp as _mcp  # noqa: F401
+    _HAVE_MCP = True
+    _IMPORT_ERROR: Exception | None = None
+except ImportError as exc:
+    _HAVE_MCP = False
+    _IMPORT_ERROR = exc
+
+
+def require_mcp() -> None:
+    """Raise a clear, actionable error if the 'mcp' package is not installed.
+
+    ``MCPBroker`` is duck-typed -- it wraps any object exposing an async
+    ``call_tool`` (a real ``mcp`` client or an in-memory fake), so it does not force
+    this import. Call this when you specifically need the 'mcp' package present.
+    """
+    if not _HAVE_MCP:
+        raise ImportError(
+            "vitnium's MCP adapter needs the 'mcp' package for a real MCP "
+            'client/server. Install it with:  pip install "vitnium[mcp]"'
+        ) from _IMPORT_ERROR
+
 
 def _rh(x) -> str:
     return hashlib.blake2b(repr(x).encode(), digest_size=16).hexdigest()
