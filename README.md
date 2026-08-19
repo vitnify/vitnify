@@ -1,8 +1,12 @@
-<p align="center"><strong>vitnify</strong> — execution receipts for AI agents</p>
+<h1 align="center">Vitnify your agents</h1>
+<p align="center"><strong>Logs tell you what your agent did. Vitnify proves it</strong> — a cryptographic,
+independently-reconstructable record of what an agent computed and did.</p>
 
 Contain what an agent may do, deterministically reconstruct the model behind every
 decision, and seal the whole run into one **bit-for-bit receipt** anyone can verify
 offline — long after it happened.
+
+> **vitnify** *(v.)* — to turn an agent run into a receipt anyone can reproduce and verify, offline.
 
 vitnify isn't detection. It gives you the primitives to prove exactly what an agent
 did: a `vitnify-receipt v1` binds the model's computation, the granted capabilities,
