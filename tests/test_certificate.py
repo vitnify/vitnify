@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from vitnium.certificate import (
+from vitnify.certificate import (
     ExecutionCertificate, FORMAT, issue_certificate, _canon,
 )
 
@@ -60,7 +60,7 @@ def test_capabilities_are_order_independent_in_the_digest():
     ("n_events", 4),
     ("head_hash", "head1"),
     ("model_digests", ["d0", "d1"]),
-    ("v", "vitnium-receipt v2"),
+    ("v", "vitnify-receipt v2"),
 ])
 def test_changing_any_bound_field_changes_the_digest(field, value):
     assert _cert(**{field: value}).digest() != _cert().digest()

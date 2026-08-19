@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vitnium.events import EventLog, Kind, canon, h
-from vitnium._vendor.pck.cas import MerkleCAS
+from vitnify.events import EventLog, Kind, canon, h
+from vitnify._vendor.pck.cas import MerkleCAS
 
 from conftest import build_log, clone
 

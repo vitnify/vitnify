@@ -29,8 +29,8 @@ def _require_langgraph() -> None:
     """Raise a clear, actionable error if the LangGraph extra is not installed."""
     if _IMPORT_ERROR is not None:
         raise ImportError(
-            "vitnium's LangGraph adapter requires 'langgraph' and 'langchain-core'. "
-            'Install them with:  pip install "vitnium[langgraph]"'
+            "vitnify's LangGraph adapter requires 'langgraph' and 'langchain-core'. "
+            'Install them with:  pip install "vitnify[langgraph]"'
         ) from _IMPORT_ERROR
 
 

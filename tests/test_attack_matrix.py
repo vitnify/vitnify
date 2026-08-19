@@ -19,9 +19,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from vitnium.events import EventLog, Kind
-from vitnium.capability import Broker, recorded_tool_results
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.events import EventLog, Kind
+from vitnify.capability import Broker, recorded_tool_results
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
 from conftest import CAPS, SECRET, make_tools, build_log, clone, tool_idx
 
@@ -31,7 +31,7 @@ def ctx(ed_keys):
     """A pristine, verifying baseline run + ed25519 receipt."""
     priv, pub = ed_keys
     log = build_log([])
-    cert, _ = issue_certificate("vitnium-agent-v1", CAPS, log, priv=priv)
+    cert, _ = issue_certificate("vitnify-agent-v1", CAPS, log, priv=priv)
     assert verify_certificate(cert, log)["ok"], "baseline run must verify"
     return SimpleNamespace(log=log, cert=cert, priv=priv, pub=pub)
 

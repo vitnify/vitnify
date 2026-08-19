@@ -28,7 +28,7 @@ MODEL_ID = "tinyllama-1.1b-chat-Q4_K_M"
 
 @pytest.fixture(scope="module")
 def engine():
-    from vitnium.engine import Engine
+    from vitnify.engine import Engine
     return Engine(GGUF, model_id=MODEL_ID, binary=BIN)
 
 
@@ -40,9 +40,9 @@ def test_engine_run_is_deterministic(engine):
 
 
 def test_receipt_binds_model_digest_and_level2_reproduces(engine):
-    from vitnium.events import EventLog
-    from vitnium.engine import prompt_hash
-    from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+    from vitnify.events import EventLog
+    from vitnify.engine import prompt_hash
+    from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
     step = engine.run(PROMPT, n_new=N_NEW)
     log = EventLog()

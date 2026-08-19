@@ -7,11 +7,11 @@ certified with ed25519. Writes last_run.json for the viewer.
 import os, sys, hashlib, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendored"))
-from vitnium.deterministic_llm import DeterministicLM
-from vitnium.replayer import record_run, replay_run, Session
-from vitnium.certificate import verify_certificate, gen_ed25519
-from vitnium.react import run_react_chat
-from vitnium.events import Kind
+from vitnify.deterministic_llm import DeterministicLM
+from vitnify.replayer import record_run, replay_run, Session
+from vitnify.certificate import verify_certificate, gen_ed25519
+from vitnify.react import run_react_chat
+from vitnify.events import Kind
 
 EXFIL, SECRET = [], "acct=4291-88 balance=$18,400 ssn=123-45-6789"
 tools = {

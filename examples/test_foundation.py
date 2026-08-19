@@ -8,9 +8,9 @@ HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(HERE, "..", "src"))
 sys.path.insert(0, os.path.join(HERE, "..", "vendored"))
 
-from vitnium.events import EventLog, Kind
-from vitnium.capability import Broker
-from vitnium.certificate import issue_certificate, verify_certificate
+from vitnify.events import EventLog, Kind
+from vitnify.capability import Broker
+from vitnify.certificate import issue_certificate, verify_certificate
 
 EXFIL, SECRET = [], "patient_ssn=123-45-6789"
 tools = {

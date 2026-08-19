@@ -3,10 +3,10 @@
 Every nondeterministic input/output of an agent run becomes one canonical,
 hash-linked Event. The chain gives append-only tamper-evidence during recording;
 certificate.py Merkle-commits the same chunks for inclusion proofs and binds the
-root into the signed vitnium-receipt.
+root into the signed vitnify-receipt.
 
 Hashing is BLAKE3 throughout (matching the vitni-tensor engine and the
-`vitnium-receipt v1` format), so the whole receipt is one hash family end to end.
+`vitnify-receipt v1` format), so the whole receipt is one hash family end to end.
 """
 from __future__ import annotations
 import json
@@ -64,7 +64,7 @@ class EventLog:
     def append_llm_call(self, prompt_hash: str, tokens: list, seed, model_digest: str) -> Event:
         """Record a model step and bind its vitni-tensor model-computation digest.
 
-        `model_digest` is the engine's `vitnium-receipt v1` digest for this forward
+        `model_digest` is the engine's `vitnify-receipt v1` digest for this forward
         pass. Committing it here (and thus in the receipt's Merkle root) is what binds
         the deterministic model recomputation to the agent run.
         """

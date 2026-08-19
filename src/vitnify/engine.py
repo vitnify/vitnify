@@ -1,7 +1,7 @@
 """Bridge to the vitni-tensor engine.
 
 Runs a model step through the deterministic engine and returns its
-`vitnium-receipt v1` model-computation digest, so the SDK can bind what the model
+`vitnify-receipt v1` model-computation digest, so the SDK can bind what the model
 actually computed into the signed execution receipt (`EventLog.append_llm_call`).
 
 The engine is the `vitni-receipt` binary (built from the vitni-tensor crate). Point

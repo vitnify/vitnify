@@ -10,11 +10,11 @@ Recorded under production batch load, replayed alone, certified. Writes last_run
 import os, sys, hashlib, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendored"))
-from vitnium.deterministic_llm import DeterministicLM
-from vitnium.replayer import record_run, replay_run
-from vitnium.certificate import verify_certificate
-from vitnium.react import parse_action, REACT_SYS
-from vitnium.events import Kind
+from vitnify.deterministic_llm import DeterministicLM
+from vitnify.replayer import record_run, replay_run
+from vitnify.certificate import verify_certificate
+from vitnify.react import parse_action, REACT_SYS
+from vitnify.events import Kind
 
 EXFIL, SECRET = [], "patient_ssn=123-45-6789"
 tools = {

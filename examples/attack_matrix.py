@@ -1,4 +1,4 @@
-"""Adversarial attack matrix for the vitnium execution certificate + capability broker.
+"""Adversarial attack matrix for the vitnify execution certificate + capability broker.
 
 For each attack we do one of three things:
   (contain)  show the capability broker makes the action unreachable;
@@ -11,9 +11,9 @@ evaluation, not a feature demo.
 import os, sys, copy
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendored"))
-from vitnium.events import EventLog, Event, Kind
-from vitnium.capability import Broker, recorded_tool_results
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.events import EventLog, Event, Kind
+from vitnify.capability import Broker, recorded_tool_results
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
 SECRET = "patient_ssn=123-45-6789"
 EXFIL = []
@@ -54,7 +54,7 @@ def add(attack, layer, ok):  rows.append((attack, layer, "DEFENDED" if ok else "
 priv, pub = gen_ed25519()
 EXFIL.clear()
 log = build_run()
-cert, _ = issue_certificate("vitnium-agent-v1", CAPS, log, priv=priv)
+cert, _ = issue_certificate("vitnify-agent-v1", CAPS, log, priv=priv)
 assert verify_certificate(cert, log)["ok"], "baseline run must verify"
 
 # helper: tamper the LOG, verify ORIGINAL cert against it -> should fail

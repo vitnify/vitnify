@@ -1,6 +1,6 @@
-# vitnium-receipt v1
+# vitnify-receipt v1
 
-The canonical format for a vitnium execution receipt: one signed, self-verifying
+The canonical format for a vitnify execution receipt: one signed, self-verifying
 object that binds an agent run — its computation, authority, actions, and order —
 so an action cannot be detached from what produced it.
 
@@ -16,7 +16,7 @@ no secret.
 The per-step commitment to what the model actually computed:
 
 ```
-model_digest = BLAKE3( "vitnium-receipt v1\x00"
+model_digest = BLAKE3( "vitnify-receipt v1\x00"
                        || LEB128(n_inputs)        || inputs
                        || LEB128(n_outputs)       || outputs
                        || LEB128(n_ops)           || per-op records
@@ -38,7 +38,7 @@ The signed digest is `BLAKE3(canonical_json(body))`, where `body` is:
 
 | field | meaning |
 |---|---|
-| `v` | `"vitnium-receipt v1"` |
+| `v` | `"vitnify-receipt v1"` |
 | `program_hash` | hash of the exact agent program that ran |
 | `capabilities` | sorted list of granted capabilities |
 | `event_root` | BLAKE3 Merkle root of the event log (inclusion proofs) |
@@ -87,6 +87,6 @@ edit, reorder, truncation, or forgery of the transcript.
 An embedded ed25519 key proves **integrity and signer continuity**, not that the
 signer was an authorised runtime. A receipt re-signed by a different key still
 self-verifies. Binding execution *provenance* requires a pinned trust anchor —
-a known key, or a TPM/enclave — supplied by the verifier. A **vitnium-verified**
-receipt is one countersigned by the official vitnium Verification Authority
+a known key, or a TPM/enclave — supplied by the verifier. A **vitnify-verified**
+receipt is one countersigned by the official vitnify Verification Authority
 against such an anchor.

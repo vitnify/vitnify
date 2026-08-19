@@ -4,7 +4,7 @@ closes the gap. Production = co-batched (batch_load>0); forensic replay = alone 
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from vitnium.deterministic_llm import DeterministicLM
+from vitnify.deterministic_llm import DeterministicLM
 
 lm = DeterministicLM()
 print(f"device={lm.dev}\n")

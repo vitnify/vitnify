@@ -1,26 +1,26 @@
-<p align="center"><strong>vitnium</strong> — execution receipts for AI agents</p>
+<p align="center"><strong>vitnify</strong> — execution receipts for AI agents</p>
 
 Contain what an agent may do, deterministically reconstruct the model behind every
 decision, and seal the whole run into one **bit-for-bit receipt** anyone can verify
 offline — long after it happened.
 
-vitnium isn't detection. It gives you the primitives to prove exactly what an agent
-did: a `vitnium-receipt v1` binds the model's computation, the granted capabilities,
+vitnify isn't detection. It gives you the primitives to prove exactly what an agent
+did: a `vitnify-receipt v1` binds the model's computation, the granted capabilities,
 every tool call and result, the entropy, and the order into a single ed25519-signed,
 self-verifying object.
 
 ## Install
 
 ```
-pip install vitnium
+pip install vitnify
 ```
 
 ## Quickstart
 
 ```python
-from vitnium.events import EventLog, Kind
-from vitnium.engine import Engine, prompt_hash
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.events import EventLog, Kind
+from vitnify.engine import Engine, prompt_hash
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
 eng = Engine("model.gguf", model_id="my-model")        # deterministic backend
 log = EventLog()
@@ -38,7 +38,7 @@ verify_certificate(cert, log)   # level 1: offline integrity — no model, no se
 # level 2: re-run each step through the engine; every model_digest reproduces bit-for-bit
 ```
 
-See [`vitnium-receipt-v1.md`](vitnium-receipt-v1.md) for the receipt format, and
+See [`vitnify-receipt-v1.md`](vitnify-receipt-v1.md) for the receipt format, and
 `examples/demo_receipt_e2e.py` for the full loop.
 
 ## What you get
@@ -47,13 +47,13 @@ See [`vitnium-receipt-v1.md`](vitnium-receipt-v1.md) for the receipt format, and
 - **Deterministic replay** — re-run any past run and get the identical result.
 - **Bit-for-bit receipts** — the model's exact computation, bound and signed.
 - **Offline verification** — anyone verifies with no model, network, or secret.
-- **Drop-in** — wraps existing **LangGraph** and **MCP** agents (`pip install vitnium[langgraph]` / `[mcp]`).
+- **Drop-in** — wraps existing **LangGraph** and **MCP** agents (`pip install vitnify[langgraph]` / `[mcp]`).
 
-The deterministic engine is [`vitni-tensor`](https://github.com/vitnium/vitni-tensor);
+The deterministic engine is [`vitni-tensor`](https://github.com/vitnify/vitni-tensor);
 the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it).
 
 ## License
 
-Apache-2.0. **"vitnium"** and **"vitnium-verified"** are trademarks — see
+Apache-2.0. **"vitnify"** and **"vitnify-verified"** are trademarks — see
 [TRADEMARKS.md](TRADEMARKS.md). A fork may use the code, but not the name or issue
-vitnium-verified receipts.
+vitnify-verified receipts.

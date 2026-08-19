@@ -8,9 +8,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendored"))
 from mcp.server import MCPServer
 from mcp import Client
-from vitnium.events import EventLog, Kind
-from vitnium.mcp_adapter import MCPBroker, recorded_mcp_results
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.events import EventLog, Kind
+from vitnify.mcp_adapter import MCPBroker, recorded_mcp_results
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
 EXFIL, SECRET = [], "patient_ssn=123-45-6789"
 server = MCPServer("vitni-mcp-demo")

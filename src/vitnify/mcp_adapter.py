@@ -29,8 +29,8 @@ def require_mcp() -> None:
     """
     if not _HAVE_MCP:
         raise ImportError(
-            "vitnium's MCP adapter needs the 'mcp' package for a real MCP "
-            'client/server. Install it with:  pip install "vitnium[mcp]"'
+            "vitnify's MCP adapter needs the 'mcp' package for a real MCP "
+            'client/server. Install it with:  pip install "vitnify[mcp]"'
         ) from _IMPORT_ERROR
 
 

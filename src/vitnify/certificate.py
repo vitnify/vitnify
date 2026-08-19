@@ -1,4 +1,4 @@
-"""vitnium-receipt v1 -- the signed, self-verifying execution receipt.
+"""vitnify-receipt v1 -- the signed, self-verifying execution receipt.
 
 One receipt binds an agent run into a single object:
 
@@ -26,7 +26,7 @@ from .events import EventLog
 
 from ._vendor.pck.cas import MerkleCAS  # noqa: E402
 
-FORMAT = "vitnium-receipt v1"
+FORMAT = "vitnify-receipt v1"
 
 try:
     import blake3 as _blake3
@@ -91,7 +91,7 @@ class ExecutionCertificate:
 
 
 def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key: bytes | None = None):
-    """Build and sign a vitnium-receipt for a completed run.
+    """Build and sign a vitnify-receipt for a completed run.
 
     The model-computation digests are read from the log's llm_call events, so the
     receipt binds exactly the model steps that were recorded. ed25519 (self-verifying)

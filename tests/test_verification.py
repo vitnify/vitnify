@@ -11,8 +11,8 @@ import copy
 
 import pytest
 
-from vitnium.events import EventLog, Event, Kind
-from vitnium.certificate import issue_certificate, verify_certificate
+from vitnify.events import EventLog, Event, Kind
+from vitnify.certificate import issue_certificate, verify_certificate
 
 from conftest import CAPS, clone, tool_idx
 
@@ -103,5 +103,5 @@ def test_tampering_capabilities_in_the_receipt_is_rejected(signed):
 def test_wrong_format_string_is_rejected(signed):
     cert, log = signed[0], signed[1]
     forged = copy.deepcopy(cert)
-    forged.v = "vitnium-receipt v2"
+    forged.v = "vitnify-receipt v2"
     assert verify_certificate(forged, log)["ok"] is False

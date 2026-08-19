@@ -6,7 +6,7 @@ import copy
 
 import pytest
 
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
 from conftest import CAPS
 

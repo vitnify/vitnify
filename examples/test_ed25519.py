@@ -4,9 +4,9 @@ with only the certificate itself (the public key is embedded) -- no shared secre
 import os, sys, hashlib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendored"))
-from vitnium.events import EventLog, Kind
-from vitnium.capability import Broker
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.events import EventLog, Kind
+from vitnify.capability import Broker
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
 SECRET = "patient_ssn=123-45-6789"
 tools = {"read_public": lambda x: f"public::{x}", "read_secret": lambda: SECRET,

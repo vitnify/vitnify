@@ -2,8 +2,8 @@
 is recorded, and replay re-injects recorded results instead of re-running live tools."""
 from __future__ import annotations
 
-from vitnium.events import EventLog, Kind
-from vitnium.capability import Broker, recorded_tool_results
+from vitnify.events import EventLog, Kind
+from vitnify.capability import Broker, recorded_tool_results
 
 from conftest import CAPS, SECRET, make_tools
 

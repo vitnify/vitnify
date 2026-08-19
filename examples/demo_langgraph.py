@@ -7,10 +7,10 @@ plugs into the identical session interface (proven in the other demos).
 import os, sys, hashlib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendored"))
-from vitnium.replayer import Session
-from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
-from vitnium.langgraph_adapter import build_react_graph, initial_prompt
-from vitnium.events import Kind
+from vitnify.replayer import Session
+from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.langgraph_adapter import build_react_graph, initial_prompt
+from vitnify.events import Kind
 
 
 class _FakeTok:

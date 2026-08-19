@@ -1,4 +1,4 @@
-"""Shared fixtures and helpers for the vitnium test suite.
+"""Shared fixtures and helpers for the vitnify test suite.
 
 The canonical run built here mirrors ``examples/attack_matrix.build_run``: a single
 model step, one granted tool call (ALLOW), two ungranted tool calls (DENY), and an
@@ -11,9 +11,9 @@ import copy
 
 import pytest
 
-from vitnium.events import EventLog, Event, Kind
-from vitnium.capability import Broker
-from vitnium.certificate import issue_certificate, gen_ed25519
+from vitnify.events import EventLog, Event, Kind
+from vitnify.capability import Broker
+from vitnify.certificate import issue_certificate, gen_ed25519
 
 SECRET = "patient_ssn=123-45-6789"
 CAPS = {"read_public"}  # only read_public is granted
@@ -86,5 +86,5 @@ def agent_log(exfil):
 def signed(agent_log, ed_keys):
     """(cert, log, priv, pub, cas) for the canonical run, ed25519-signed."""
     priv, pub = ed_keys
-    cert, cas = issue_certificate("vitnium-agent-v1", CAPS, agent_log, priv=priv)
+    cert, cas = issue_certificate("vitnify-agent-v1", CAPS, agent_log, priv=priv)
     return cert, agent_log, priv, pub, cas

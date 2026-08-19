@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vitnium.mcp_adapter import _HAVE_MCP
+from vitnify.mcp_adapter import _HAVE_MCP
 
 try:
     import langgraph  # noqa: F401
@@ -27,19 +27,19 @@ except ImportError:
 @pytest.mark.adapter
 @pytest.mark.skipif(_HAVE_LANGGRAPH, reason="langgraph installed; error path not exercised")
 def test_langgraph_missing_dep_raises_actionable_error():
-    from vitnium import langgraph_adapter
-    with pytest.raises(ImportError, match=r"vitnium\[langgraph\]"):
+    from vitnify import langgraph_adapter
+    with pytest.raises(ImportError, match=r"vitnify\[langgraph\]"):
         langgraph_adapter.build_react_graph(None, "", [])
-    with pytest.raises(ImportError, match=r"vitnium\[langgraph\]"):
+    with pytest.raises(ImportError, match=r"vitnify\[langgraph\]"):
         langgraph_adapter.VitniReplayCallback(None)
 
 
 @pytest.mark.adapter
 @pytest.mark.skipif(not _HAVE_LANGGRAPH, reason="requires the [langgraph] extra")
 def test_langgraph_graph_records_replays_and_certifies():
-    from vitnium.replayer import Session
-    from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
-    from vitnium.langgraph_adapter import build_react_graph, initial_prompt
+    from vitnify.replayer import Session
+    from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
+    from vitnify.langgraph_adapter import build_react_graph, initial_prompt
 
     class _FakeTok:
         def decode(self, toks, skip_special_tokens=True):
@@ -90,8 +90,8 @@ def test_langgraph_graph_records_replays_and_certifies():
 @pytest.mark.adapter
 @pytest.mark.skipif(_HAVE_MCP, reason="mcp installed; error path not exercised")
 def test_mcp_require_raises_actionable_error():
-    from vitnium.mcp_adapter import require_mcp
-    with pytest.raises(ImportError, match=r"vitnium\[mcp\]"):
+    from vitnify.mcp_adapter import require_mcp
+    with pytest.raises(ImportError, match=r"vitnify\[mcp\]"):
         require_mcp()
 
 
@@ -107,9 +107,9 @@ class _FakeMCPClient:
 
 @pytest.mark.adapter
 def test_mcp_broker_contains_records_and_replays():
-    from vitnium.mcp_adapter import MCPBroker, recorded_mcp_results
-    from vitnium.events import EventLog
-    from vitnium.certificate import issue_certificate, verify_certificate, gen_ed25519
+    from vitnify.mcp_adapter import MCPBroker, recorded_mcp_results
+    from vitnify.events import EventLog
+    from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
     caps = {"read_public"}
 
