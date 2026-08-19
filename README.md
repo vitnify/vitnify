@@ -61,3 +61,13 @@ the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it
 Apache-2.0. **"vitnify"** and **"vitnify-verified"** are trademarks — see
 [TRADEMARKS.md](TRADEMARKS.md). A fork may use the code, but not the name or issue
 vitnify-verified receipts.
+
+## Part of Vitnify
+
+This SDK is one of three open repos:
+
+- **[vitni-tensor](https://github.com/vitnify/vitni-tensor)** — the deterministic,
+  `no_std` engine that produces the bit-identical model-computation digest this SDK binds.
+- **[vitnify-receipt-spec](https://github.com/vitnify/vitnify-receipt-spec)** — the
+  canonical `vitnify-receipt v1` format the SDK implements.
+- **[vitnify.com](https://vitnify.com)** — the project.
