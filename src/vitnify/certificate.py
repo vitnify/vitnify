@@ -184,15 +184,23 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
             cert.sig, hmac.new(key, cert.digest().encode(), hashlib.blake2b).hexdigest())
     checks["sig_valid"] = sig_valid
 
-    # Capability consistency -- the receipt must PROVE containment held, not just
-    # carry a capability list: every ALLOWED tool call has to be within the
-    # declared, signed-over capability set. (Denied calls need not be granted.)
+    # Capability consistency -- the receipt must PROVE no ungranted tool executed,
+    # not just carry a capability list. Every tool call must be within the declared,
+    # signed-over capability set OR a CLEAN DENIAL (decision exactly "deny",
+    # case/space-insensitive, with no result). Keying only off decision=="allow"
+    # let a forged log slip an ungranted, result-bearing call through by relabelling
+    # the decision ("PERMIT", " allow", omitted...) -- F11. Failing closed on
+    # anything that is not a clean denial removes that, whatever string it carries.
     granted = set(cert.capabilities)
+
+    def _clean_denial(p: dict) -> bool:
+        return (str(p.get("decision", "")).strip().lower() == "deny"
+                and "result" not in p and "result_hash" not in p)
+
     checks["caps_consistent"] = all(
-        e.payload.get("tool") in granted
+        e.payload.get("tool") in granted or _clean_denial(e.payload)
         for e in log.events
         if e.kind == Kind.TOOL_CALL.value
-        and str(e.payload.get("decision", "")).lower() == "allow"
     )
 
     # A verified receipt must carry NO data field its version does not sign. The v1

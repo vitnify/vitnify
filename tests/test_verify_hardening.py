@@ -74,3 +74,24 @@ def test_f5_signer_pinning():
     assert verify_certificate(cert, log, pinned_pubkeys=[pub])["ok"] is True
     # unpinned verification (no allow-list) still succeeds on integrity + self-sig
     assert verify_certificate(cert, log)["ok"] is True
+
+
+def test_f11_containment_not_evaded_by_decision_string():
+    # F11: an ungranted, result-bearing tool call must be rejected no matter what
+    # string its decision carries -- containment is proven, not keyed off "allow".
+    priv, _ = gen_ed25519()
+    for decision in ("PERMIT", " allow", "allowed", "Allow", None):
+        payload = {"tool": "wire_transfer", "result": "SENT"}
+        if decision is not None:
+            payload["decision"] = decision
+        log = EventLog(); log.append(Kind.TOOL_CALL, payload)
+        cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)   # wire_transfer ungranted
+        assert verify_certificate(cert, log)["ok"] is False, repr(decision)
+    # an ungranted tool mislabelled DENY but still carrying a result is also rejected
+    log = EventLog(); log.append(Kind.TOOL_CALL, {"tool": "wire_transfer", "decision": "DENY", "result": "SENT"})
+    cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
+    assert verify_certificate(cert, log)["ok"] is False
+    # ...but a clean denial of an ungranted tool still verifies (containment working)
+    log = EventLog(); log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "DENY"})
+    cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
+    assert verify_certificate(cert, log)["ok"] is True

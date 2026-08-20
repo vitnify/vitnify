@@ -3,6 +3,19 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.3] — 2026-08-19
+
+### Security
+- **Capability containment can no longer be evaded via the decision string.** The
+  check keyed off `decision == "allow"`, so a forged log could slip an ungranted,
+  result-bearing tool call through by relabelling it (`"PERMIT"`, `" allow"`, an
+  omitted field). Verification now fails closed: every `tool_call` must be within
+  the declared capabilities **or** a clean denial (decision `deny`, no result), so
+  a verifying receipt *proves* no ungranted tool executed — whatever string the
+  decision carries. (Requires a compromised runtime or the signing key to reach;
+  it hardens the guarantee that `verify_certificate()` makes to a downstream
+  auditor.)
+
 ## [0.2.2] — 2026-08-19
 
 ### Fixed
