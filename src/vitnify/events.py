@@ -32,7 +32,7 @@ def h(s: str) -> str:
 
 
 class Kind(str, Enum):
-    LLM_CALL   = "llm_call"     # (prompt_hash, tokens, seed, model_digest, regime) -- the model step
+    LLM_CALL   = "llm_call"     # (prompt_hash, tokens, seed, model_digest, regime, weights_hash) -- the model step
     TOOL_CALL  = "tool_call"    # (tool, args, decision, result) -- external, re-injected on replay
     ENTROPY    = "entropy"      # (source, value) -- RNG/clock draw, from-log on replay
     AGENT_STEP = "agent_step"   # (state) -- orchestration checkpoint
@@ -62,20 +62,22 @@ class EventLog:
         return ev
 
     def append_llm_call(self, prompt_hash: str, tokens: list, seed, model_digest: str,
-                        *, regime: str | None = None, provider: dict | None = None) -> Event:
+                        *, regime: str | None = None, weights_hash: str | None = None,
+                        provider: dict | None = None) -> Event:
         """Record a model step and bind its vitni-tensor model-computation digest.
 
         `model_digest` is the engine's tier-1 (`vitnify-receipt v2`) digest for this
         forward pass. Committing it here (and thus in the receipt's Merkle root) is what
         binds the deterministic model recomputation to the agent run.
 
-        `regime` is the engine's numerical-regime identifier (e.g. `vitni-regime-1`) that
-        the digest was produced under -- pass the engine's `regime` field through. It is
-        bound AND readable in the receipt, which is the point: a level-2 verifier can
-        report "issued under regime-1, this engine is regime-2" instead of an unexplained
-        digest mismatch that is indistinguishable from tampering. (Binding the regime
-        into the digest is what makes the digest change; recording it here is what makes
-        that change diagnosable.)
+        `regime` and `weights_hash` are the two engine inputs the digest depends on but
+        cannot be read back out of it: the numerical-regime identifier (e.g.
+        `vitni-regime-1`) and the BLAKE3 of the model weights. Both are folded into the
+        engine's `model_digest`, so both are *bound* -- but a bare digest mismatch on L2
+        recompute cannot say which one moved. Recording them here makes each one *readable*
+        as well, so a verifier reports "regime-1 vs regime-2" or "wrong weights"
+        (`weights_hash` differs) instead of an opaque mismatch indistinguishable from
+        tampering. Pass the engine's `regime` and `weights_hash` fields through.
 
         For a HOSTED model there is no reproducible computation to bind. Pass
         `provider` to record who produced the output -- e.g. {"provider": "openai",
@@ -88,6 +90,8 @@ class EventLog:
                    "seed": seed, "model_digest": model_digest}
         if regime is not None:
             payload["regime"] = regime
+        if weights_hash is not None:
+            payload["weights_hash"] = weights_hash
         if provider:
             payload["provider"] = dict(provider)
         return self.append(Kind.LLM_CALL, payload)
@@ -97,6 +101,12 @@ class EventLog:
         step that recorded none -- a hosted or pre-regime step). Lets an L2 verifier
         report a regime mismatch instead of an opaque digest mismatch."""
         return [e.payload.get("regime") for e in self.events
+                if e.kind == Kind.LLM_CALL.value and "model_digest" in e.payload]
+
+    def model_weights_hashes(self) -> list:
+        """Ordered weights hashes each bound model step ran against (None if unrecorded).
+        Lets an L2 verifier report "wrong weights" instead of an opaque digest mismatch."""
+        return [e.payload.get("weights_hash") for e in self.events
                 if e.kind == Kind.LLM_CALL.value and "model_digest" in e.payload]
 
     def model_digests(self) -> list[str]:

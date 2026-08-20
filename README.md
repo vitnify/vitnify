@@ -31,8 +31,9 @@ log = EventLog()
 
 step = eng.run(prompt_tokens=[1, 2, 3], n_new=20)       # a model step
 log.append_llm_call(prompt_hash([1, 2, 3]), step["tokens"], seed=0,
-                    model_digest=step["model_digest"],   # bind the model computation
-                    regime=step.get("regime"))           # + the numerical regime, readable in the receipt
+                    model_digest=step["model_digest"],       # bind the model computation
+                    regime=step.get("regime"),               # + regime and weights_hash: bound in the
+                    weights_hash=step.get("weights_hash"))   #   digest, now readable in the receipt too
 log.append(Kind.TOOL_CALL, {"tool": "read_docs",  "decision": "allow"})
 log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny"})  # ungranted → blocked
 
@@ -48,7 +49,8 @@ assert checks["containment_enforced"]     # every tool call was GATED, not merel
 # reproduces bit-for-bit.)
 ```
 
-See [`vitnify-receipt-v2.md`](vitnify-receipt-v2.md) for the receipt format, and
+See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/blob/main/vitnify-receipt-v2.md)
+(canonical — this repo does not vendor a copy, so the two can't drift), and
 `examples/demo_receipt_e2e.py` for the full loop.
 
 ## What you get

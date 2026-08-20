@@ -27,7 +27,8 @@ print("model step: %d tokens generated, digest %s…" % (len(step["tokens"]), st
 # --- record the run: the model step + contained tool calls ---
 log = EventLog()
 log.append_llm_call(prompt_hash(prompt), step["tokens"], seed=0,
-                    model_digest=step["model_digest"], regime=step.get("regime"))
+                    model_digest=step["model_digest"], regime=step.get("regime"),
+                    weights_hash=step.get("weights_hash"))
 log.append(Kind.TOOL_CALL, {"tool": "read_docs",  "decision": "allow", "result": "ticket #4f9c"})
 log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny",  "result": None})  # ungranted → blocked
 

@@ -3,6 +3,35 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.11] — 2026-08-20
+
+Follow-through on the same seam: make `weights_hash` readable like `regime`, stop
+vendoring a spec copy that can drift, and make the seam fixture guard the class.
+
+### Integrity
+- **`weights_hash` is now carried into the receipt**, via `append_llm_call(...,
+  weights_hash=...)` and readable through **`EventLog.model_weights_hashes()`**. It was
+  already bound (folded into the engine's `model_digest`) but not readable — so an L2
+  replay against the wrong GGUF produced a digest mismatch indistinguishable from
+  tampering, the exact failure `regime` was made readable to cure. Which weights produced
+  a run is arguably the most consequential thing a receipt asserts; now a verifier can
+  report **wrong weights** instead of an opaque mismatch. `Engine.run()`, the demo, and
+  the README thread it through.
+
+### Anti-drift
+- **Removed the vendored spec copies** (`vitnify-receipt-v1.md`, `-v2.md`). They had
+  already fallen out of step — the code added `regime`, the local copy did not — so the
+  format doc shipped with the SDK didn't describe the field the code emitted. The README
+  now links the **canonical** [`vitnify-receipt-spec`](https://github.com/vitnify/vitnify-receipt-spec);
+  one source of truth, no drift possible.
+
+### Tests
+- **`tests/test_engine_seam.py` now iterates the engine blob's keys**, requiring each to
+  be either carried into the receipt or on an explicit, commented ignore-list. Adding an
+  engine field forces a decision instead of allowing an omission — the fixture guards the
+  class, not the three fields someone remembered. (`weights_hash` was the field it missed
+  the same way the original bug missed `regime`.)
+
 ## [0.2.10] — 2026-08-20
 
 Completes tier-1 v2: the numerical **regime is now carried into the receipt**, not just
