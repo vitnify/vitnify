@@ -181,13 +181,24 @@ def main():
     n = len(PROBES)
     print(f"\n  {n} attacks attempted · {accepted} accepted · {n - accepted} blocked")
 
-    # positive control: an honest receipt must still verify
+    # positive control: an honest, GATED receipt must verify AND prove containment
     log = _honest_log()
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
-    control = verify_certificate(cert, log).get("ok") is True
-    print(f"  control: honest receipt verifies · {'yes' if control else 'NO -- verifier is broken'}\n")
+    c = verify_certificate(cert, log)
+    control = c.get("ok") is True and c.get("containment_enforced") is True
+    print(f"  control: honest receipt verifies + proves containment · {'yes' if control else 'NO -- verifier is broken'}")
 
-    sys.exit(1 if (accepted or not control) else 0)
+    # containment distinction: an OBSERVE-ONLY receipt (watched, not gated) is a valid
+    # transcript (ok=True) but must NOT claim containment (containment_enforced=False),
+    # so a watch-only run cannot masquerade as an enforced one.
+    olog = EventLog()
+    olog.append(Kind.TOOL_CALL, {"tool": "read_docs", "decision": "observed", "result": "x"})
+    ocert, _ = issue_certificate("prog", ["read_docs"], olog, priv=PRIV)
+    oc = verify_certificate(ocert, olog)
+    observe_flagged = oc.get("ok") is True and oc.get("containment_enforced") is False
+    print(f"  control: observe-only is valid but NOT contained · {'yes' if observe_flagged else 'NO -- laundering possible'}\n")
+
+    sys.exit(1 if (accepted or not control or not observe_flagged) else 0)
 
 
 if __name__ == "__main__":

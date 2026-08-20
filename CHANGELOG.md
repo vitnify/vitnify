@@ -3,6 +3,35 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.6] — 2026-08-20
+
+Post-audit cleanup: close the last two silent hash fallbacks and make the
+containment distinction visible where people actually look.
+
+### Integrity
+- **Removed the last two silent blake3→blake2b fallbacks.** `_vendor/pck/cas.py`
+  (the Merkle module — it computes the event root) and `engine.py` (the prompt hash)
+  still degraded to `blake2b` under `--no-deps`, producing a forgery-indistinguishable
+  digest under the same `hash_name`. Both are now hard `import blake3`, matching
+  `events.py`/`certificate.py` — a missing blake3 fails loudly, never downgrades.
+- **Merkle inclusion proofs honor `hash_name`.** `InclusionProof.verify` now rejects a
+  proof committed under any hash suite other than the module's (`blake3`) instead of
+  silently recomputing it under the wrong hash.
+
+### Visibility
+- **`containment_enforced` is now surfaced where receipts are read, not just in the
+  API.** The HTML **viewer** renders a distinct badge — green *"Containment enforced"*
+  for a gated run vs. amber *"Containment observed — not proven"* for an observe-only
+  one — derived from the events the same way the verifier is, so a rendered receipt can
+  no longer show a plain green "verified" for a run that proves no containment. The
+  **README** quickstart and the **adversarial probe suite** now assert
+  `containment_enforced` too (the probe suite gained an anti-laundering control).
+
+### Docs
+- Corrected a stale `certificate.py` comment implying a hash-free import path (there is
+  none — blake3 is a hard dependency). Viewer certificate header rebranded
+  VitniReplay → Vitnify.
+
 ## [0.2.5] — 2026-08-20
 
 ### Integrity

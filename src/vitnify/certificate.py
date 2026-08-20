@@ -48,8 +48,9 @@ import blake3 as _blake3
 def _digest32(b: bytes) -> str:
     return _blake3.blake3(b).hexdigest()
 
-# cryptography is imported lazily inside the ed25519 helpers so the fallback path
-# still runs on a stock Python without the dependency.
+# `cryptography` is imported lazily inside the ed25519 helpers, so HMAC-only signing
+# works without it installed. (blake3, above, is a hard dependency -- there is no
+# hash-free path; the module will not import without it.)
 
 
 def _canon(o) -> str:

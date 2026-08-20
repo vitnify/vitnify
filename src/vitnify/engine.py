@@ -10,14 +10,12 @@ The engine is the `vitni-receipt` binary (built from the vitni-tensor crate). Po
 from __future__ import annotations
 import os, json, subprocess
 
-try:
-    import blake3 as _blake3
-    def _h32(b: bytes) -> str:
-        return _blake3.blake3(b).hexdigest()
-except ImportError:
-    import hashlib
-    def _h32(b: bytes) -> str:
-        return hashlib.blake2b(b, digest_size=32).hexdigest()
+# BLAKE3 is a hard dependency and DEFINES the wire format (see events.py): the prompt
+# hash bound into a receipt must be blake3, so there is no silent blake2b fallback -- a
+# missing blake3 fails loudly rather than binding an incompatible digest.
+import blake3 as _blake3
+def _h32(b: bytes) -> str:
+    return _blake3.blake3(b).hexdigest()
 
 DEFAULT_BIN = os.environ.get("VITNI_RECEIPT_BIN", "vitni-receipt")
 

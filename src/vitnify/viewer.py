@@ -85,9 +85,25 @@ def render(run: dict) -> str:
     def badge(ok, yes, no):
         return f'<div class="badge {"good" if ok else "bad"}"><span class="dot"></span>{yes if ok else no}</div>'
 
+    def warn_badge(text):
+        return f'<div class="badge warn"><span class="dot"></span>{text}</div>'
+
+    # Whether the receipt PROVES containment, derived from the events the same way the
+    # verifier does: every tool decision must be a gated allow/deny. An observe-only
+    # run (a watching callback that records but does not gate) is a valid transcript but
+    # proves no containment -- it must NOT render as a plain green "verified" receipt,
+    # or a non-engineer is handed a badge that claims more than the receipt shows.
+    containment_enforced = all(
+        str(e["payload"].get("decision", "")).strip().lower() in ("allow", "deny")
+        for e in events if e["kind"] == "tool_call")
+    containment_badge = (badge(True, "Containment enforced", "")
+                         if containment_enforced
+                         else warn_badge("Containment observed — not proven"))
+
     badges = (badge(v["contained"], "Injection contained", "NOT contained")
               + badge(v["replay_identical"], "Replay bit-identical", "Replay diverged")
-              + badge(v["cert_ok"], "Certificate verified", "Certificate FAILED"))
+              + badge(v["cert_ok"], "Certificate verified", "Certificate FAILED")
+              + containment_badge)
 
     cert_rows = "".join(
         f'<div class="crow"><span class="ck">{k}</span><span class="cv mono">{_esc(val)}</span></div>'
@@ -105,17 +121,17 @@ def render(run: dict) -> str:
 :root {{
   --bg:#FBFBFD; --surface:#FFFFFF; --surface-2:#F4F5F8; --ink:#1b1f27; --ink-dim:#5a6270;
   --border:#E4E7ED; --accent:#0FB5A6; --ok:#1F9D63; --ok-bg:#E7F5EE; --deny:#D6532E; --deny-bg:#FBECE6;
-  --tamper:#E5484D; --mono-bg:#F2F4F7; --shadow:0 1px 2px rgba(20,26,40,.05),0 8px 24px rgba(20,26,40,.05);
+  --warn:#B7791F; --tamper:#E5484D; --mono-bg:#F2F4F7; --shadow:0 1px 2px rgba(20,26,40,.05),0 8px 24px rgba(20,26,40,.05);
 }}
 @media (prefers-color-scheme:dark){{ :root:not([data-theme="light"]){{
   --bg:#0E1116; --surface:#161A21; --surface-2:#1C222B; --ink:#E6E9EF; --ink-dim:#98A2B3;
   --border:#262D38; --accent:#25C6B6; --ok:#3FBE7C; --ok-bg:#12291E; --deny:#EE7A54; --deny-bg:#2A1811;
-  --tamper:#F2585B; --mono-bg:#12161C; --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+  --warn:#E0A93B; --tamper:#F2585B; --mono-bg:#12161C; --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
 }} }}
 :root[data-theme="dark"] {{
   --bg:#0E1116; --surface:#161A21; --surface-2:#1C222B; --ink:#E6E9EF; --ink-dim:#98A2B3;
   --border:#262D38; --accent:#25C6B6; --ok:#3FBE7C; --ok-bg:#12291E; --deny:#EE7A54; --deny-bg:#2A1811;
-  --tamper:#F2585B; --mono-bg:#12161C; --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+  --warn:#E0A93B; --tamper:#F2585B; --mono-bg:#12161C; --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
 }}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--bg);color:var(--ink);
@@ -133,6 +149,7 @@ h1{{font-size:27px;margin:0;letter-spacing:-.01em;text-wrap:balance;}}
 .badge .dot{{width:8px;height:8px;border-radius:50%;}}
 .badge.good{{color:var(--ok);}} .badge.good .dot{{background:var(--ok);}}
 .badge.bad{{color:var(--tamper);}} .badge.bad .dot{{background:var(--tamper);}}
+.badge.warn{{color:var(--warn);}} .badge.warn .dot{{background:var(--warn);}}
 section{{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 22px;margin:16px 0;box-shadow:var(--shadow);}}
 .sec-h{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;}}
 .sec-h h2{{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-dim);margin:0;font-weight:700;}}
@@ -174,7 +191,7 @@ footer{{color:var(--ink-dim);font-size:12px;margin-top:26px;text-align:center;}}
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">VitniReplay &middot; Execution Certificate</div>
+    <div class="eyebrow">Vitnify &middot; Execution Certificate</div>
     <h1>This agent run was contained, replayed bit-for-bit, and cryptographically certified.</h1>
     <p class="task">Task recorded: &ldquo;{_esc(run.get('task','(agent run)'))}&rdquo;</p>
   </header>

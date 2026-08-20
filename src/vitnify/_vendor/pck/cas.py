@@ -13,29 +13,24 @@ root. The guarantees this buys, and why they matter for AI answers:
     hallucination: a grounded claim points at a chunk with a valid proof; an invented
     one cannot.
 
-This mirrors the BLAKE3 + Merkle design of a native runtime's ``cas_store`` (whose real
-Rust code is exercised in ``research/pck_provenance/``); here we keep a dependency-light
-pure-Python implementation that uses ``blake3`` when available and falls back to
-``hashlib.blake2b`` otherwise. The wire format of a proof is identical either way.
+This mirrors the BLAKE3 + Merkle design of a native runtime's ``cas_store``; here we
+keep a dependency-light pure-Python implementation over ``blake3``. BLAKE3 is a hard
+dependency and DEFINES the wire format: a ``blake2b`` digest is a different value under
+the same ``hash_name``, so there is NO silent stdlib fallback -- one would make honest
+proofs indistinguishable from forgeries. A missing blake3 fails loudly (matching
+``events.py`` / ``certificate.py``), never silently downgrades.
 """
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 from typing import Optional
 
-try:  # BLAKE3 if the user has it (matches the substrate); else a stdlib fallback.
-    import blake3 as _blake3  # type: ignore
+import blake3 as _blake3
 
-    _HASH_NAME = "blake3"
+_HASH_NAME = "blake3"
 
-    def _digest(b: bytes) -> str:
-        return _blake3.blake3(b).hexdigest()
-except Exception:  # pragma: no cover - depends on environment
-    _HASH_NAME = "blake2b-256"
-
-    def _digest(b: bytes) -> str:
-        return hashlib.blake2b(b, digest_size=32).hexdigest()
+def _digest(b: bytes) -> str:
+    return _blake3.blake3(b).hexdigest()
 
 
 HASH_NAME = _HASH_NAME
@@ -87,6 +82,11 @@ class InclusionProof:
     hash_name: str = HASH_NAME
 
     def verify(self, root: str) -> bool:
+        # A proof carries the hash suite it was built under. This module only speaks
+        # BLAKE3, so a proof committed under any other suite cannot be recomputed here
+        # -- reject rather than silently recompute under the wrong hash.
+        if self.hash_name != HASH_NAME:
+            return False
         return verify_proof(self.leaf, self.path, root)
 
     def to_json(self) -> dict:

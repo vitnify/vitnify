@@ -38,8 +38,13 @@ log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny"})  # ungran
 priv, pub = gen_ed25519()
 cert, _ = issue_certificate("program_hash", ["read_docs"], log, priv=priv)
 
-verify_certificate(cert, log)   # level 1: offline integrity — no model, no secret
-# level 2: re-run each step through the engine; every model_digest reproduces bit-for-bit
+checks = verify_certificate(cert, log)   # level 1: offline integrity — no model, no secret
+assert checks["ok"]                       # signed, unaltered, and no ungranted tool ran
+assert checks["containment_enforced"]     # every tool call was GATED, not merely observed
+# A receipt can be ok=True yet containment_enforced=False — a valid transcript from a
+# watch-only integration proves what ran, not that anything was contained. A containment
+# claim requires BOTH. (level 2: re-run each step through the engine; every model_digest
+# reproduces bit-for-bit.)
 ```
 
 See [`vitnify-receipt-v2.md`](vitnify-receipt-v2.md) for the receipt format, and
