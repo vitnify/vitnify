@@ -3,6 +3,26 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.12] — 2026-08-20
+
+Ship the level-2 verifier the spec specifies — so the diagnostics live in code, not only
+in prose.
+
+### Verification
+- **`vitnify.engine.verify_level2(log, engine, steps)`** re-runs each bound model step
+  and confirms its `model_digest` reproduces bit-for-bit, and when it does not, uses the
+  now-readable `weights_hash` and `regime` to report **the cause** in the spec's order:
+  `wrong_weights` → `regime_mismatch` → `digest_mismatch` (a genuine mismatch only when
+  weights and regime both matched), plus `prompt_mismatch` when the supplied prompt is not
+  the one the receipt bound. Previously L2 was a hand-rolled loop inside a test and nothing
+  shipped read the fields those releases made readable.
+
+### Tests
+- `tests/test_level2_verify.py` — drives every diagnostic branch with a **stub engine**,
+  so the ordering runs in CI without a GGUF (the real-weights reproduction stays in
+  `test_l2_recompute.py`, which now records the current receipt shape — `regime` +
+  `weights_hash` — and verifies through `verify_level2`).
+
 ## [0.2.11] — 2026-08-20
 
 Follow-through on the same seam: make `weights_hash` readable like `regime`, stop

@@ -41,13 +41,15 @@ def test_engine_run_is_deterministic(engine):
 
 def test_receipt_binds_model_digest_and_level2_reproduces(engine):
     from vitnify.events import EventLog
-    from vitnify.engine import prompt_hash
+    from vitnify.engine import prompt_hash, verify_level2
     from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
 
     step = engine.run(PROMPT, n_new=N_NEW)
     log = EventLog()
+    # record the current receipt shape: regime + weights_hash bound AND readable
     log.append_llm_call(prompt_hash(PROMPT), step["tokens"], seed=0,
-                        model_digest=step["model_digest"])
+                        model_digest=step["model_digest"], regime=step.get("regime"),
+                        weights_hash=step.get("weights_hash"))
 
     priv, _ = gen_ed25519()
     cert, _ = issue_certificate("program_hash_demo", ["read_docs"], log, priv=priv)
@@ -55,6 +57,8 @@ def test_receipt_binds_model_digest_and_level2_reproduces(engine):
     # level 1: offline integrity
     assert verify_certificate(cert, log)["ok"] is True
 
-    # level 2: recompute -> the bound digest must reproduce bit-for-bit
-    recompute = engine.run(PROMPT, n_new=N_NEW)
-    assert recompute["model_digest"] == cert.model_digests[0]
+    # level 2: the SHIPPED diagnostic verifier reproduces every bound step against the
+    # real engine + real weights.
+    results = verify_level2(log, engine, [(PROMPT, N_NEW)])
+    assert results == [{"ok": True, "reason": "reproduced"}]
+    assert engine.run(PROMPT, n_new=N_NEW)["model_digest"] == cert.model_digests[0]
