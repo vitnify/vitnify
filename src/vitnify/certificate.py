@@ -22,7 +22,7 @@ retained only as a fallback for environments without an asymmetric key.
 from __future__ import annotations
 import os, sys, json, hmac
 from dataclasses import dataclass, field, asdict
-from .events import EventLog
+from .events import EventLog, Kind
 
 from ._vendor.pck.cas import MerkleCAS  # noqa: E402
 
@@ -109,12 +109,21 @@ def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key:
     return cert, cas
 
 
-def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | None = None) -> dict:
+def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | None = None,
+                       pinned_pubkeys=None) -> dict:
     """Level-1 verification: recompute everything from the raw events; trust nothing.
 
-    ed25519 receipts verify against their OWN embedded public key -- no secret required.
-    (Level 2 -- recomputing each model_digest through vitni-tensor -- is a separate step
-    that additionally needs the model weights.)
+    Fails CLOSED. A receipt is only `ok` if a signature was actually checked and
+    passed: an unsigned receipt (`sig_alg="none"`), an unknown algorithm, or an
+    HMAC receipt presented without its key all yield `sig_valid=False`, so a
+    receipt that cannot be cryptographically verified can never report `ok=True`.
+
+    ed25519 receipts verify against their OWN embedded public key -- no secret
+    required -- but that proves signer continuity, not signer authority. Pass
+    `pinned_pubkeys` (an allow-list of hex ed25519 keys) to additionally require
+    the receipt was signed by a key you trust. (Level 2 -- recomputing each
+    model_digest through vitni-tensor -- is a separate step that additionally
+    needs the model weights.)
     """
     cas = MerkleCAS(log.chunks())
     checks = {
@@ -124,16 +133,41 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
         "count_matches": len(log) == cert.n_events,
         "model_digests_match": log.model_digests() == list(cert.model_digests),
     }
-    if cert.sig_alg == "ed25519":
+
+    # Signature -- fail closed. Only an actually-checked, passing signature sets
+    # this True; "none", an unknown alg, or keyless HMAC all leave it False, so an
+    # unverifiable receipt can never reach ok=True.
+    sig_valid = False
+    if cert.sig_alg == "ed25519" and cert.sig and cert.pubkey:
         try:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
             Ed25519PublicKey.from_public_bytes(bytes.fromhex(cert.pubkey)).verify(
                 bytes.fromhex(cert.sig), bytes.fromhex(cert.digest()))
-            checks["sig_valid"] = True
+            sig_valid = True
         except Exception:
-            checks["sig_valid"] = False
-    elif cert.sig_alg == "hmac-blake2b" and key is not None:
+            sig_valid = False
+    elif cert.sig_alg == "hmac-blake2b" and cert.sig and key is not None:
         import hashlib
-        checks["sig_valid"] = cert.sig == hmac.new(key, cert.digest().encode(), hashlib.blake2b).hexdigest()
+        sig_valid = hmac.compare_digest(
+            cert.sig, hmac.new(key, cert.digest().encode(), hashlib.blake2b).hexdigest())
+    checks["sig_valid"] = sig_valid
+
+    # Capability consistency -- the receipt must PROVE containment held, not just
+    # carry a capability list: every ALLOWED tool call has to be within the
+    # declared, signed-over capability set. (Denied calls need not be granted.)
+    granted = set(cert.capabilities)
+    checks["caps_consistent"] = all(
+        e.payload.get("tool") in granted
+        for e in log.events
+        if e.kind == Kind.TOOL_CALL.value
+        and str(e.payload.get("decision", "")).lower() == "allow"
+    )
+
+    # Optional signer pinning -- an embedded key proves continuity, not authority.
+    # When an allow-list is supplied, the signer must be ed25519 and on the list.
+    if pinned_pubkeys is not None:
+        checks["signer_pinned"] = (
+            sig_valid and cert.sig_alg == "ed25519" and cert.pubkey in set(pinned_pubkeys))
+
     checks["ok"] = all(checks.values())
     return checks
