@@ -95,3 +95,28 @@ def test_f11_containment_not_evaded_by_decision_string():
     log = EventLog(); log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "DENY"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
     assert verify_certificate(cert, log)["ok"] is True
+
+
+def test_f12_unknown_event_kind_is_rejected():
+    # F12: the semantic checks filter events by an exact kind match, so an unknown
+    # kind would slip past them. Fail closed -- any unrecognised kind invalidates the
+    # receipt. This closes the whole "self-declared label evades a filter" class:
+    # F1 (sig_alg), F11 (decision), F12 (kind) all now fail closed on unknown values.
+    priv, _ = gen_ed25519()
+    # an ungranted tool hidden under an unrecognised kind must not escape containment
+    log = EventLog(); log.append("TOOL_CALL", {"tool": "wire_transfer", "decision": "ALLOW", "result": "x"})
+    cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
+    r = verify_certificate(cert, log)
+    assert r["kinds_known"] is False and r["ok"] is False
+    # a model step hidden under an unrecognised kind must not verify either
+    log = EventLog(); log.append("LLM_CALL", {"prompt_hash": "p", "tokens": [1], "seed": 0, "model_digest": "d"})
+    cert, _ = issue_certificate("prog", [], log, priv=priv)
+    assert verify_certificate(cert, log)["ok"] is False
+    # every recognised kind still verifies
+    log = EventLog()
+    log.append(Kind.LLM_CALL, {"prompt_hash": "p", "tokens": [1], "seed": 0, "model_digest": "d"})
+    log.append(Kind.TOOL_CALL, {"tool": "read_docs", "decision": "ALLOW", "result": "r", "result_hash": "h"})
+    log.append(Kind.ENTROPY, {"source": "clock", "value": 1})
+    log.append(Kind.AGENT_STEP, {"state": "done"})
+    cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
+    assert verify_certificate(cert, log)["ok"] is True

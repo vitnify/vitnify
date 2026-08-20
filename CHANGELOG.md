@@ -3,6 +3,18 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.4] — 2026-08-19
+
+### Security
+- **Unrecognised event kinds are rejected — closing a whole class of bypass.** The
+  semantic checks filter events by an exact `kind` match, so a forged log could hide
+  an event from a check by relabelling its `kind` (`"TOOL_CALL"` escaped
+  containment; `"LLM_CALL"` dropped a model step from `model_digests`). Verification
+  now fails closed on any `kind` outside the known set (`llm_call`, `tool_call`,
+  `entropy`, `agent_step`). Together with the fail-closed handling of an unknown
+  `sig_alg` (0.2.0) and an unknown `decision` (0.2.3), this retires the entire
+  "a self-declared label slips past a filter" family in one structural check.
+
 ## [0.2.3] — 2026-08-19
 
 ### Security

@@ -158,8 +158,15 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     needs the model weights.)
     """
     cas = MerkleCAS(log.chunks())
+    # Every event kind must be recognised. The semantic checks below filter events
+    # by an EXACT kind match, so an unknown kind ("TOOL_CALL", "toolcall", ...) would
+    # slip past them silently -- the same self-declared-label class as an unknown
+    # sig_alg or an unknown decision string. Fail closed here so the whole class is
+    # gone: an unrecognised kind (or decision, or algorithm, or format) never verifies.
+    known_kinds = {k.value for k in Kind}
     checks = {
         "format": cert.v in SUPPORTED_FORMATS,
+        "kinds_known": all(e.kind in known_kinds for e in log.events),
         "root_matches": cas.root == cert.event_root,
         "head_matches": log.head() == cert.head_hash,
         "count_matches": len(log) == cert.n_events,
