@@ -3,6 +3,28 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.8] — 2026-08-20
+
+Tighten the viewer's containment claim to its evidence — the last place the human page
+said something stronger than the receipt supports. Viewer/presentation only; the
+verifier, format, and spec are unchanged.
+
+### Integrity
+- **A failed certificate no longer yields a containment claim.** When `cert_ok` is
+  false the event log is *unverified* — it may be the very forgery the certificate
+  exists to catch — so the viewer no longer derives "contained" (in the headline or the
+  badge) from it. It shows *Containment unverified — certificate failed* instead.
+- **No vacuous containment.** A run with zero tool calls is `containment_enforced=True`
+  at the API level (`all([])` is true), but the viewer no longer tells a human the run
+  was "contained" when nothing was ever gated — it shows *No tool calls*.
+- The headline reads "contained" only when the certificate verifies **and** a tool was
+  actually gated.
+
+### Tests
+- `tests/test_viewer.py` covers both cases and adds a soundness invariant: the page
+  reads "contained" only when the certificate verifies, a tool was gated, and the
+  verifier's own predicate agrees.
+
 ## [0.2.7] — 2026-08-20
 
 Make the human-facing receipt as honest as the machine-checkable one, and cover the

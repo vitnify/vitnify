@@ -80,22 +80,41 @@ def test_enforced_all_allow_claims_containment():
     assert "Containment observed" not in html
 
 
-def test_headline_drops_uncertified_claim():
+def test_cert_failed_drops_all_derived_claims():
+    # If the certificate does not verify, the event log is UNVERIFIED -- it may be the
+    # very forgery the certificate exists to catch -- so the page must not claim
+    # containment (or certification) from it, even though every event reads as gated.
     run, _ = _build(["allow"], cert_ok=False)
-    headline = _headline(render(run))
+    html = render(run)
+    headline = _headline(html)
     assert "cryptographically certified" not in headline
-    assert "contained" in headline.lower()  # containment still holds
+    assert "contained" not in headline.lower()
+    assert ("warn", "Containment unverified — certificate failed") in _badges(html)
+    assert ("bad", "Certificate FAILED") in _badges(html)
+    assert not any(t in ("Injection contained", "Containment enforced") for _, t in _badges(html))
 
 
-def test_viewer_containment_matches_verifier():
-    # The viewer and the verifier must never disagree about containment -- they share
-    # one predicate (decision_is_gated). Assert the page's warn badge appears iff the
-    # verifier reports containment_enforced=False, for both gated and observed runs.
-    for decisions in (["allow", "deny"], ["observed"], ["allow"], ["PERMIT"]):
-        run, log = _build(decisions)
+def test_zero_tool_run_is_not_vacuously_contained():
+    # all([]) is True, so a tool-free run is containment_enforced at the API level -- but
+    # the page must not tell a human the run was "contained" when nothing was ever gated.
+    run, _ = _build([])  # llm_call only, no tool calls
+    html = render(run)
+    assert "contained" not in _headline(html).lower()
+    assert ("neutral", "No tool calls") in _badges(html)
+
+
+def test_viewer_never_claims_containment_without_verified_gating():
+    # Soundness: the headline reads "contained" ONLY when the certificate verifies, a
+    # tool was actually gated, and the verifier's own predicate agrees gating held. The
+    # page never claims containment on unverified, empty, or ungated evidence.
+    cases = [(["allow", "deny"], True), (["observed"], True), (["allow"], True),
+             (["PERMIT"], True), (["allow"], False), ([], True)]
+    for decisions, cert_ok in cases:
+        run, log = _build(decisions, cert_ok=cert_ok)
+        says_contained = "contained" in _headline(render(run)).lower()
         enforced = verify_certificate(_recert(run), log)["containment_enforced"]
-        warned = "Containment observed — not proven" in render(run)
-        assert warned == (not enforced), decisions
+        if says_contained:
+            assert cert_ok and bool(decisions) and enforced, (decisions, cert_ok)
 
 
 def test_render_tolerates_missing_digest():

@@ -89,31 +89,46 @@ def render(run: dict) -> str:
     def warn_badge(text):
         return f'<div class="badge warn"><span class="dot"></span>{text}</div>'
 
+    def neutral_badge(text):
+        return f'<div class="badge neutral"><span class="dot"></span>{text}</div>'
+
     # Every containment claim on this page is DERIVED from the events with the SAME rule
     # the verifier uses (decision_is_gated) -- never taken from the caller's verdict dict.
-    # An observe-only run (a watching callback that records but does not gate) is a valid
-    # transcript that proves no containment; it must not read as "contained" anywhere,
-    # headline included, or a non-engineer is handed a claim stronger than the receipt.
+    # But a claim is only as strong as the evidence under it, so the page asserts
+    # containment POSITIVELY only when both hold:
+    #   * the certificate verifies -- otherwise the log is UNVERIFIED and may be the very
+    #     forgery the certificate exists to catch, so nothing derived from it can be
+    #     trusted, containment included; and
+    #   * a tool was actually gated -- a run that called no tool has nothing to contain,
+    #     so "contained" would be vacuously true.
+    # verify_certificate reports those cases as containment_enforced=True (a machine
+    # predicate over the events alone); the human page is deliberately stricter and never
+    # reads as "contained" on unverified or empty evidence.
     tool_events = [e for e in events if e["kind"] == "tool_call"]
-    containment_enforced = all(decision_is_gated(e["payload"].get("decision")) for e in tool_events)
+    all_gated = all(decision_is_gated(e["payload"].get("decision")) for e in tool_events)
     blocked = any(str(e["payload"].get("decision", "")).strip().lower() == "deny" for e in tool_events)
     cert_ok = bool(v.get("cert_ok"))
     replay_ok = bool(v.get("replay_identical"))
+    containment_proven = cert_ok and bool(tool_events) and all_gated
 
-    if not containment_enforced:
+    if not cert_ok:
+        containment_badge = warn_badge("Containment unverified — certificate failed")
+    elif not tool_events:
+        containment_badge = neutral_badge("No tool calls")            # nothing to contain
+    elif not all_gated:
         containment_badge = warn_badge("Containment observed — not proven")
     elif blocked:
-        containment_badge = badge(True, "Injection contained", "")   # an ungranted call was refused
+        containment_badge = badge(True, "Injection contained", "")    # an ungranted call was refused
     else:
-        containment_badge = badge(True, "Containment enforced", "")  # every call gated; none needed blocking
+        containment_badge = badge(True, "Containment enforced", "")   # every call gated; none needed blocking
 
     badges = (containment_badge
               + badge(replay_ok, "Replay bit-identical", "Replay diverged")
               + badge(cert_ok, "Certificate verified", "Certificate FAILED"))
 
-    # Headline asserts ONLY what holds. "contained" tracks containment_enforced (not the
-    # caller), so the observe-only page drops the word instead of retracting it below.
-    claims = (["contained"] if containment_enforced else []) \
+    # Headline asserts ONLY what the evidence supports: "contained" needs a verified log
+    # AND a gated tool; "cryptographically certified" needs the signature to check out.
+    claims = (["contained"] if containment_proven else []) \
         + (["replayed bit-for-bit"] if replay_ok else []) \
         + (["cryptographically certified"] if cert_ok else [])
     if not claims:
@@ -170,6 +185,7 @@ h1{{font-size:27px;margin:0;letter-spacing:-.01em;text-wrap:balance;}}
 .badge.good{{color:var(--ok);}} .badge.good .dot{{background:var(--ok);}}
 .badge.bad{{color:var(--tamper);}} .badge.bad .dot{{background:var(--tamper);}}
 .badge.warn{{color:var(--warn);}} .badge.warn .dot{{background:var(--warn);}}
+.badge.neutral{{color:var(--ink-dim);}} .badge.neutral .dot{{background:var(--ink-dim);}}
 section{{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 22px;margin:16px 0;box-shadow:var(--shadow);}}
 .sec-h{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;}}
 .sec-h h2{{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-dim);margin:0;font-weight:700;}}
