@@ -195,6 +195,14 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
         and str(e.payload.get("decision", "")).lower() == "allow"
     )
 
+    # A verified receipt must carry NO data field its version does not sign. The v1
+    # body binds none of the v2 issuance fields, so a v1 receipt with issued_at /
+    # nonce / run_id set is carrying an unsigned, forgeable value (e.g. a backdated
+    # issued_at) -- reject it, so ok=True never blesses data outside the signature.
+    checks["fields_match_version"] = not (
+        cert.v == "vitnify-receipt v1"
+        and any(x is not None for x in (cert.issued_at, cert.nonce, cert.run_id)))
+
     # Optional signer pinning -- an embedded key proves continuity, not authority.
     # When an allow-list is supplied, the signer must be ed25519 and on the list.
     if pinned_pubkeys is not None:

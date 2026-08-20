@@ -3,6 +3,17 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.2] — 2026-08-19
+
+### Fixed
+- **A verified receipt can no longer carry unsigned data.** After the 0.2.1
+  backward-compatibility fix, a v1 receipt still had the v2-only fields
+  (`issued_at`, `nonce`, `run_id`) on the object even though v1 does not sign them
+  — so a forged (e.g. backdated) `issued_at` could be attached to a v1 receipt and
+  verification would still return `ok=True`. The verifier now rejects a v1 receipt
+  that carries any v2-only field (`fields_match_version`), so `ok=True` never
+  blesses a value outside the signature.
+
 ## [0.2.1] — 2026-08-19
 
 Follow-up fixes from a post-remediation retest.

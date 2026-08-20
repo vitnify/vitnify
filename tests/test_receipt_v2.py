@@ -109,3 +109,24 @@ def test_f9_session_llm_records_provider():
     ev = next(e for e in s.log.events if e.kind == Kind.LLM_CALL.value)
     assert ev.payload["provider"] == {
         "provider": "openai", "model_version": "gpt-x", "response_id": "resp_1"}
+
+
+def test_f10_v1_receipt_carrying_v2_fields_is_rejected():
+    # F10: v1 does not sign issued_at/nonce/run_id, so a v1 receipt that CARRIES them
+    # is carrying unsigned, forgeable data (e.g. a backdated timestamp) -- it must not
+    # verify, or ok=True would bless a value outside the signature.
+    from vitnify.certificate import ExecutionCertificate, _canon, _digest32
+    from vitnify._vendor.pck.cas import MerkleCAS
+    priv, pub = gen_ed25519()
+    log = _run(); cas = MerkleCAS(log.chunks())
+    b1 = {"v": "vitnify-receipt v1", "program_hash": "p", "capabilities": ["read_docs"],
+          "event_root": cas.root, "n_events": len(log), "head_hash": log.head(),
+          "model_digests": log.model_digests()}
+    sig = priv.sign(bytes.fromhex(_digest32(_canon(b1).encode()))).hex()
+    cert = ExecutionCertificate("p", ["read_docs"], cas.root, len(log), log.head(),
+                                model_digests=log.model_digests())
+    cert.v, cert.sig, cert.sig_alg, cert.pubkey = "vitnify-receipt v1", sig, "ed25519", pub
+    assert verify_certificate(cert, log)["ok"] is True            # genuine v1 still verifies
+    cert.issued_at = "2019-01-01T00:00:00Z"                       # forge a backdated timestamp
+    r = verify_certificate(cert, log)
+    assert r["fields_match_version"] is False and r["ok"] is False
