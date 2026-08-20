@@ -9,7 +9,7 @@ offline — long after it happened.
 > **vitnify** *(v.)* — to turn an agent run into a receipt anyone can reproduce and verify, offline.
 
 vitnify isn't detection. It gives you the primitives to prove exactly what an agent
-did: a `vitnify-receipt v1` binds the model's computation, the granted capabilities,
+did: a `vitnify-receipt v2` binds the model's computation, the granted capabilities,
 every tool call and result, the entropy, and the order into a single ed25519-signed,
 self-verifying object.
 
@@ -42,7 +42,7 @@ verify_certificate(cert, log)   # level 1: offline integrity — no model, no se
 # level 2: re-run each step through the engine; every model_digest reproduces bit-for-bit
 ```
 
-See [`vitnify-receipt-v1.md`](vitnify-receipt-v1.md) for the receipt format, and
+See [`vitnify-receipt-v2.md`](vitnify-receipt-v2.md) for the receipt format, and
 `examples/demo_receipt_e2e.py` for the full loop.
 
 ## What you get
@@ -69,5 +69,5 @@ This SDK is one of three open repos:
 - **[vitni-tensor](https://github.com/vitnify/vitni-tensor)** — the deterministic,
   `no_std` engine that produces the bit-identical model-computation digest this SDK binds.
 - **[vitnify-receipt-spec](https://github.com/vitnify/vitnify-receipt-spec)** — the
-  canonical `vitnify-receipt v1` format the SDK implements.
+  canonical `vitnify-receipt v2` format the SDK implements.
 - **[vitnify.com](https://vitnify.com)** — the project.

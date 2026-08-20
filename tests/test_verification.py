@@ -103,5 +103,5 @@ def test_tampering_capabilities_in_the_receipt_is_rejected(signed):
 def test_wrong_format_string_is_rejected(signed):
     cert, log = signed[0], signed[1]
     forged = copy.deepcopy(cert)
-    forged.v = "vitnify-receipt v2"
+    forged.v = "vitnify-receipt v1"
     assert verify_certificate(forged, log)["ok"] is False

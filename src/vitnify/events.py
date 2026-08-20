@@ -61,17 +61,26 @@ class EventLog:
         self.events.append(ev)
         return ev
 
-    def append_llm_call(self, prompt_hash: str, tokens: list, seed, model_digest: str) -> Event:
+    def append_llm_call(self, prompt_hash: str, tokens: list, seed, model_digest: str,
+                        *, provider: dict | None = None) -> Event:
         """Record a model step and bind its vitni-tensor model-computation digest.
 
         `model_digest` is the engine's `vitnify-receipt v1` digest for this forward
         pass. Committing it here (and thus in the receipt's Merkle root) is what binds
         the deterministic model recomputation to the agent run.
+
+        For a HOSTED model there is no reproducible computation to bind. Pass
+        `provider` to record who produced the output -- e.g. {"provider": "openai",
+        "model_version": ..., "response_id": ..., "system_fingerprint": ...}.
+        Binding it lets a later check tell a provider change (version/backend drift)
+        apart from tampering. Hosted receipts are integrity-only: do not replay them
+        as a control (see the spec's hosted-model note).
         """
-        return self.append(Kind.LLM_CALL, {
-            "prompt_hash": prompt_hash, "tokens": list(tokens),
-            "seed": seed, "model_digest": model_digest,
-        })
+        payload = {"prompt_hash": prompt_hash, "tokens": list(tokens),
+                   "seed": seed, "model_digest": model_digest}
+        if provider:
+            payload["provider"] = dict(provider)
+        return self.append(Kind.LLM_CALL, payload)
 
     def model_digests(self) -> list[str]:
         """Ordered engine model-computation digests bound by this log (for L2 recompute)."""

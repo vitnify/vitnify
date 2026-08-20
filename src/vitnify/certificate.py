@@ -26,7 +26,16 @@ from .events import EventLog, Kind
 
 from ._vendor.pck.cas import MerkleCAS  # noqa: E402
 
-FORMAT = "vitnify-receipt v1"
+FORMAT = "vitnify-receipt v2"
+
+
+def _now_iso() -> str:
+    """Issuer-asserted UTC timestamp (second precision). Places the receipt in time
+    and, with the nonce, makes every receipt unique. NOT a trusted timestamp -- an
+    RFC 3161 token or the Verification Authority countersignature is what makes the
+    time non-repudiable; this defeats silent replay, not a determined backdater."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 try:
     import blake3 as _blake3
@@ -60,16 +69,23 @@ class ExecutionCertificate:
     n_events: int
     head_hash: str
     model_digests: list = field(default_factory=list)   # engine per-step digests, bound by the log
+    issued_at: str | None = None    # ISO-8601 UTC, issuer-asserted (see _now_iso)
+    nonce: str | None = None        # random per receipt -- makes each receipt unique, non-replayable
+    run_id: str | None = None       # identifies THIS run; distinct runs get distinct receipts
     v: str = FORMAT
     sig: str | None = None
     sig_alg: str = "none"
     pubkey: str | None = None       # ed25519 public key (hex) -- verifier needs no secret
 
     def body(self) -> dict:
+        # Everything here is signed. issued_at/nonce/run_id place the receipt in
+        # time and make it unique, so a receipt from one run cannot be presented as
+        # evidence for another.
         return {"v": self.v, "program_hash": self.program_hash,
                 "capabilities": sorted(self.capabilities), "event_root": self.event_root,
                 "n_events": self.n_events, "head_hash": self.head_hash,
-                "model_digests": list(self.model_digests)}
+                "model_digests": list(self.model_digests),
+                "issued_at": self.issued_at, "nonce": self.nonce, "run_id": self.run_id}
 
     def digest(self) -> str:
         return _digest32(_canon(self.body()).encode())
@@ -90,17 +106,23 @@ class ExecutionCertificate:
         return _canon(asdict(self))
 
 
-def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key: bytes | None = None):
+def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key: bytes | None = None,
+                      run_id: str | None = None):
     """Build and sign a vitnify-receipt for a completed run.
 
     The model-computation digests are read from the log's llm_call events, so the
-    receipt binds exactly the model steps that were recorded. ed25519 (self-verifying)
-    is the canonical signing path; pass `priv`.
+    receipt binds exactly the model steps that were recorded. Each receipt is
+    stamped with an issuer-asserted UTC time, a random nonce, and a run id (pass
+    `run_id` to set your own; a random one is used otherwise) so distinct runs
+    produce distinct, time-placeable receipts. ed25519 (self-verifying) is the
+    canonical signing path; pass `priv`.
     """
     cas = MerkleCAS(log.chunks())
     cert = ExecutionCertificate(
         program_hash, sorted(set(capabilities)), cas.root, len(log), log.head(),
         model_digests=log.model_digests(),
+        issued_at=_now_iso(), nonce=os.urandom(16).hex(),
+        run_id=run_id if run_id is not None else os.urandom(16).hex(),
     )
     if priv is not None:
         cert.sign_ed25519(priv)

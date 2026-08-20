@@ -28,7 +28,8 @@ def _cert(**over):
 def test_body_has_exactly_the_bound_fields():
     assert set(_cert().body()) == {
         "v", "program_hash", "capabilities", "event_root",
-        "n_events", "head_hash", "model_digests"}
+        "n_events", "head_hash", "model_digests",
+        "issued_at", "nonce", "run_id"}
 
 
 def test_body_does_not_include_the_signature():
@@ -60,7 +61,10 @@ def test_capabilities_are_order_independent_in_the_digest():
     ("n_events", 4),
     ("head_hash", "head1"),
     ("model_digests", ["d0", "d1"]),
-    ("v", "vitnify-receipt v2"),
+    ("issued_at", "2020-01-01T00:00:00Z"),
+    ("nonce", "ff" * 16),
+    ("run_id", "run-x"),
+    ("v", "vitnify-receipt v1"),
 ])
 def test_changing_any_bound_field_changes_the_digest(field, value):
     assert _cert(**{field: value}).digest() != _cert().digest()
@@ -76,15 +80,21 @@ def test_issue_binds_root_head_count_and_model_digests(agent_log, ed_keys):
     assert cert.model_digests == agent_log.model_digests()
 
 
-def test_issue_is_deterministic_for_identical_runs(ed_keys):
+def test_identical_runs_share_computation_but_get_unique_receipts(ed_keys):
     priv, _ = ed_keys
     log_a, log_b = build_log([]), build_log([])
     cert_a, _ = issue_certificate("prog", CAPS, log_a, priv=priv)
     cert_b, _ = issue_certificate("prog", CAPS, log_b, priv=priv)
-    # The signature is over the digest, so identical runs even sign identically.
-    assert cert_a.digest() == cert_b.digest()
+    # The bound COMPUTATION is deterministic: identical runs commit to the same
+    # event root and model digests.
     assert cert_a.event_root == cert_b.event_root
-    assert cert_a.sig == cert_b.sig
+    assert cert_a.model_digests == cert_b.model_digests
+    # ...but each receipt is UNIQUE -- nonce/run_id/issued_at differ -- so it can be
+    # placed in time and one run's receipt can't be presented as another's.
+    assert cert_a.nonce != cert_b.nonce
+    assert cert_a.run_id != cert_b.run_id
+    assert cert_a.digest() != cert_b.digest()
+    assert cert_a.sig != cert_b.sig
 
 
 def test_to_json_is_canonical_and_round_trips_fields(signed):
