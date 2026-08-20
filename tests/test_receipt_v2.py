@@ -66,3 +66,46 @@ def test_hosted_provider_identity_is_bound_and_drift_is_detectable():
                             provider={"provider": "openai", "model_version": "gpt-x-2026-02",
                                       "system_fingerprint": "fp_XYZ", "response_id": "resp_2"})
     assert verify_certificate(cert, drifted)["ok"] is False
+
+
+def test_v1_receipt_still_verifies_under_the_v2_verifier():
+    # F8: a receipt validly signed under v1 (7-field body) must still verify -- a
+    # published format is frozen and the product's premise is verify-years-later.
+    from vitnify.certificate import ExecutionCertificate, _canon, _digest32
+    from vitnify._vendor.pck.cas import MerkleCAS
+    import copy
+    priv, pub = gen_ed25519()
+    log = _run()
+    cas = MerkleCAS(log.chunks())
+    v1_body = {"v": "vitnify-receipt v1", "program_hash": "prog",
+               "capabilities": ["read_docs"], "event_root": cas.root,
+               "n_events": len(log), "head_hash": log.head(),
+               "model_digests": log.model_digests()}
+    sig = priv.sign(bytes.fromhex(_digest32(_canon(v1_body).encode()))).hex()
+    cert = ExecutionCertificate("prog", ["read_docs"], cas.root, len(log), log.head(),
+                                model_digests=log.model_digests())
+    cert.v, cert.sig, cert.sig_alg, cert.pubkey = "vitnify-receipt v1", sig, "ed25519", pub
+    r = verify_certificate(cert, log)
+    assert r["format"] and r["sig_valid"] and r["ok"]          # v1 fully verifies
+    bad = copy.deepcopy(cert); bad.program_hash = "evil"        # ...but tampering is caught
+    assert verify_certificate(bad, log)["ok"] is False
+
+
+def test_f9_session_llm_records_provider():
+    from vitnify.replayer import Session
+
+    class _Tok:
+        def decode(self, toks, skip_special_tokens=True):
+            return "text"
+
+    class _LM:
+        tok = _Tok()
+        def generate(self, prompt, n_new, batch_load, invariant):
+            return [1, 2], ["h1", "h2"]
+
+    s = Session(_LM(), caps=[], tools={}, invariant=True,
+                provider={"provider": "openai", "model_version": "gpt-x"})
+    s.llm("hi", n_new=2, provider={"response_id": "resp_1"})    # per-call merges with session default
+    ev = next(e for e in s.log.events if e.kind == Kind.LLM_CALL.value)
+    assert ev.payload["provider"] == {
+        "provider": "openai", "model_version": "gpt-x", "response_id": "resp_1"}

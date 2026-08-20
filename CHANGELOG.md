@@ -3,6 +3,25 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.1] — 2026-08-19
+
+Follow-up fixes from a post-remediation retest.
+
+### Fixed
+- **Backward-compatible verification.** `verify_certificate()` matched the format
+  string exactly, so 0.2.0 rejected receipts validly signed under
+  `vitnify-receipt v1` — contradicting the spec's promise that v1 stays valid. The
+  verifier now accepts every published format and reconstructs each receipt's
+  signed body from its own `v`, so a v1 receipt still verifies while tampering is
+  still caught. (A published format must remain verifiable across verifier
+  upgrades, or "verify it years later" fails.)
+
+### Added
+- **Provider binding on the agent path.** `Session.llm(..., provider=)`,
+  `Session(..., provider=)`, and `record_run(..., provider=)` now record hosted
+  provider identity on every model step, so the hosted-drift mitigation reaches the
+  documented LangGraph/MCP path — not just manual `append_llm_call`.
+
 ## [0.2.0] — 2026-08-19
 
 Hardens verification and evolves the receipt to **`vitnify-receipt v2`**, applying

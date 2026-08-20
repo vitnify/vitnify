@@ -27,6 +27,10 @@ from .events import EventLog, Kind
 from ._vendor.pck.cas import MerkleCAS  # noqa: E402
 
 FORMAT = "vitnify-receipt v2"
+# A published receipt format is frozen; older receipts must stay verifiable across a
+# verifier upgrade. The verifier accepts every version it has ever issued and
+# reconstructs each receipt's signed body per its own `v` (see body()).
+SUPPORTED_FORMATS = frozenset({"vitnify-receipt v1", FORMAT})
 
 
 def _now_iso() -> str:
@@ -78,14 +82,20 @@ class ExecutionCertificate:
     pubkey: str | None = None       # ed25519 public key (hex) -- verifier needs no secret
 
     def body(self) -> dict:
-        # Everything here is signed. issued_at/nonce/run_id place the receipt in
-        # time and make it unique, so a receipt from one run cannot be presented as
-        # evidence for another.
-        return {"v": self.v, "program_hash": self.program_hash,
-                "capabilities": sorted(self.capabilities), "event_root": self.event_root,
-                "n_events": self.n_events, "head_hash": self.head_hash,
-                "model_digests": list(self.model_digests),
-                "issued_at": self.issued_at, "nonce": self.nonce, "run_id": self.run_id}
+        # Everything here is signed, and the body is VERSIONED: v2+ additionally
+        # binds issued_at/nonce/run_id (which place the receipt in time and make it
+        # unique). Reconstructing the body per the receipt's OWN `v` is what lets a
+        # v2 verifier still verify a receipt signed under v1 -- a published format is
+        # frozen, so older receipts must remain verifiable.
+        b = {"v": self.v, "program_hash": self.program_hash,
+             "capabilities": sorted(self.capabilities), "event_root": self.event_root,
+             "n_events": self.n_events, "head_hash": self.head_hash,
+             "model_digests": list(self.model_digests)}
+        if self.v != "vitnify-receipt v1":
+            b["issued_at"] = self.issued_at
+            b["nonce"] = self.nonce
+            b["run_id"] = self.run_id
+        return b
 
     def digest(self) -> str:
         return _digest32(_canon(self.body()).encode())
@@ -149,7 +159,7 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     """
     cas = MerkleCAS(log.chunks())
     checks = {
-        "format": cert.v == FORMAT,
+        "format": cert.v in SUPPORTED_FORMATS,
         "root_matches": cas.root == cert.event_root,
         "head_matches": log.head() == cert.head_hash,
         "count_matches": len(log) == cert.n_events,
