@@ -3,6 +3,17 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.9] — 2026-08-20
+
+### Integrity
+- **The verifier fails closed on an empty event log instead of crashing.**
+  `verify_certificate` built a `MerkleCAS` over the log's chunks unconditionally, and
+  `MerkleCAS` raises `ValueError` on an empty chunk list — so a receipt presented with a
+  zero-event log raised out of the verifier rather than returning a verdict. No
+  legitimately issued receipt has an empty log (issuance commits ≥1 event), so an empty
+  log is always malformed: it now returns `ok=False` (`root_matches=False`), never
+  raises. A verifier must fail closed on hostile input, not throw.
+
 ## [0.2.8] — 2026-08-20
 
 Tighten the viewer's containment claim to its evidence — the last place the human page

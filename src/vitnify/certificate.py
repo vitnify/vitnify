@@ -177,7 +177,11 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     model_digest through vitni-tensor -- is a separate step that additionally
     needs the model weights.)
     """
-    cas = MerkleCAS(log.chunks())
+    # An empty event log has no Merkle commitment, so no legitimately issued receipt
+    # carries one (issue_certificate commits >=1 event). A verifier must FAIL CLOSED on
+    # such degenerate/hostile input, never crash: compute the root only when there are
+    # events and treat its absence as a non-match, instead of letting MerkleCAS raise.
+    cas_root = MerkleCAS(log.chunks()).root if log.events else None
     # Every event kind must be recognised. The semantic checks below filter events
     # by an EXACT kind match, so an unknown kind ("TOOL_CALL", "toolcall", ...) would
     # slip past them silently -- the same self-declared-label class as an unknown
@@ -187,7 +191,7 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     checks = {
         "format": cert.v in SUPPORTED_FORMATS,
         "kinds_known": all(e.kind in known_kinds for e in log.events),
-        "root_matches": cas.root == cert.event_root,
+        "root_matches": cas_root is not None and cas_root == cert.event_root,
         "head_matches": log.head() == cert.head_hash,
         "count_matches": len(log) == cert.n_events,
         "model_digests_match": log.model_digests() == list(cert.model_digests),

@@ -11,7 +11,8 @@ verification-bypass that must stay closed:
   F5  optional key pinning rejects an unpinned (but otherwise valid) signer
 """
 from vitnify.events import EventLog, Kind
-from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.certificate import (
+    ExecutionCertificate, issue_certificate, verify_certificate, gen_ed25519)
 
 
 def _log(tool, decision):
@@ -140,3 +141,16 @@ def test_observe_only_receipt_is_flagged_not_masqueraded():
     assert receipt("OBSERVED", ["read_docs"])["ok"] is False    # observed ungranted tool ran -> rejected
     r = receipt("ALLOW", ["read_docs", "send_email"])           # enforced allow -> real proof
     assert r["ok"] is True and r["containment_enforced"] is True
+
+
+def test_empty_log_fails_closed_not_raises():
+    # A verifier must never CRASH on degenerate/hostile input. An empty event log has no
+    # Merkle commitment (no legitimately issued receipt has one), so verification must
+    # return ok=False -- not raise ValueError from MerkleCAS on the empty chunk list.
+    priv, _ = gen_ed25519()
+    log = EventLog()                      # zero events
+    # A signed certificate that merely CLAIMS an empty run must still not verify.
+    cert = ExecutionCertificate("prog", [], "0" * 64, 0, "genesis").sign_ed25519(priv)
+    checks = verify_certificate(cert, log)   # must not raise
+    assert checks["ok"] is False
+    assert checks["root_matches"] is False
