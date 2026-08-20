@@ -31,7 +31,8 @@ log = EventLog()
 
 step = eng.run(prompt_tokens=[1, 2, 3], n_new=20)       # a model step
 log.append_llm_call(prompt_hash([1, 2, 3]), step["tokens"], seed=0,
-                    model_digest=step["model_digest"])   # bind the model computation
+                    model_digest=step["model_digest"],   # bind the model computation
+                    regime=step.get("regime"))           # + the numerical regime, readable in the receipt
 log.append(Kind.TOOL_CALL, {"tool": "read_docs",  "decision": "allow"})
 log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny"})  # ungranted → blocked
 

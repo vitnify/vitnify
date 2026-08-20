@@ -3,6 +3,38 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.10] — 2026-08-20
+
+Completes tier-1 v2: the numerical **regime is now carried into the receipt**, not just
+bound in the engine's digest.
+
+### Integrity
+- **`append_llm_call(..., regime=...)` records the engine's numerical regime** in the
+  `llm_call` payload — so it is bound (via the Merkle root) **and readable** in the
+  receipt. Binding the regime into the digest is what makes the digest change when the
+  regime changes; recording it here is what makes that change *diagnosable*: a level-2
+  verifier can report "issued under regime-1, this engine is regime-2" instead of an
+  opaque digest mismatch indistinguishable from tampering. Previously the engine emitted
+  `regime` and the SDK dropped it — the fix landed in the engine but never reached the
+  receipt.
+- **`EventLog.model_regimes()`** — ordered regimes per bound model step (None for a
+  hosted or pre-regime step), the accessor an L2 verifier reads.
+- **`Engine.run()`** returns the engine JSON verbatim (now including `regime` and
+  `model_digest_v1`); `demo_receipt_e2e.py` and the README quickstart thread `regime`
+  through.
+
+### Robustness / docs
+- `issue_certificate` on an empty log now raises a clear `ValueError` at the API surface
+  instead of a raw error out of the vendored Merkle module.
+- Fixed a stale `events.py` doc that still called `model_digest` the "vitnify-receipt v1"
+  digest (it is tier-1 **v2**).
+
+### Tests
+- `tests/test_engine_seam.py` — a canned engine-JSON blob asserting every field the
+  engine binds survives into the signed receipt, and that a tampered regime breaks
+  verification. This exercises the engine→SDK→receipt seam that the level-2 tests skip
+  without a GGUF — the seam that had let the regime silently drop.
+
 ## [0.2.9] — 2026-08-20
 
 ### Integrity

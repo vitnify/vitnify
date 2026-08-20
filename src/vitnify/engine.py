@@ -34,7 +34,11 @@ class Engine:
         self.binary = binary
 
     def run(self, prompt_tokens: list[int], n_new: int = 16) -> dict:
-        """Return {"tokens": [...], "model_digest": hex, "weights_hash": hex}."""
+        """Run one model step. Returns the engine's JSON verbatim:
+        {"tokens": [...], "model_digest": hex (tier-1 v2), "regime": str,
+         "model_digest_v1": hex (frozen v1), "weights_hash": hex}.
+        Pass `model_digest` AND `regime` to `EventLog.append_llm_call` so both are bound
+        and readable in the receipt."""
         proc = subprocess.run(
             [self.binary, "--gguf", self.gguf,
              "--prompt", ",".join(str(t) for t in prompt_tokens),

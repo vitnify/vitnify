@@ -147,6 +147,9 @@ def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key:
     runs produce distinct, time-placeable receipts. ed25519 (self-verifying) is the
     canonical signing path; pass `priv`.
     """
+    if not log.events:
+        raise ValueError("cannot issue a receipt for an empty event log: record at "
+                         "least one event first (there is nothing to commit)")
     cas = MerkleCAS(log.chunks())
     cert = ExecutionCertificate(
         program_hash, sorted(set(capabilities)), cas.root, len(log), log.head(),
