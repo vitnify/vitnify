@@ -3,6 +3,38 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.7] — 2026-08-20
+
+Make the human-facing receipt as honest as the machine-checkable one, and cover the
+module that renders it.
+
+### Integrity
+- **The viewer headline no longer over-claims containment.** `render()` hardcoded an
+  `<h1>` that asserted the run was "contained" regardless of the events, so an
+  observe-only receipt showed a containment claim in the largest text on the page and
+  retracted it in a badge below. The headline is now built from what actually holds —
+  it drops "contained" for an observe-only run (and "cryptographically certified" when
+  the certificate does not verify) instead of asserting and walking it back.
+- **Containment is derived, not asserted.** Every containment signal the viewer shows
+  (headline and badge) is now derived from the events, not read from the caller's
+  `verdict["contained"]`. The badge distinguishes *Injection contained* (an ungranted
+  call was refused) from *Containment enforced* (all calls gated) from
+  *Containment observed — not proven*.
+- **One rule, one place.** The gated-decision predicate now lives once in
+  `certificate.decision_is_gated`; `verify_certificate` and the viewer both call it, so
+  the dict a machine checks and the page a person reads can't drift.
+
+### Tests
+- Added `tests/test_viewer.py` — the viewer had **no** test coverage, which is why the
+  headline survived a change that was specifically about it. Covers the headline and
+  badges for enforced/observe-only/uncertified runs and asserts the viewer and verifier
+  never disagree about containment.
+
+### Docs
+- `render()` no longer requires a `digest` key the certificate does not emit; the
+  certificate-id/signature rows degrade gracefully. Signature row relabelled (was
+  hardcoded "HMAC"; the path is ed25519).
+
 ## [0.2.6] — 2026-08-20
 
 Post-audit cleanup: close the last two silent hash fallbacks and make the

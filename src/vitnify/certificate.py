@@ -32,6 +32,19 @@ FORMAT = "vitnify-receipt v2"
 # reconstructs each receipt's signed body per its own `v` (see body()).
 SUPPORTED_FORMATS = frozenset({"vitnify-receipt v1", FORMAT})
 
+# The tool decisions that count as GATED -- the call passed through the capability wall
+# (allow) or was refused by it (deny). Any other label ("observed", ...) is watch-only,
+# not enforcement. This is the SINGLE SOURCE OF TRUTH for the containment predicate:
+# verify_certificate and the human-facing viewer both call it, so the rule cannot drift
+# between the dict a machine checks and the page a person reads.
+GATED_DECISIONS = frozenset({"allow", "deny"})
+
+
+def decision_is_gated(decision) -> bool:
+    """True if a tool decision was gated by the capability wall (allow/deny), not merely
+    observed. Case- and whitespace-insensitive; fails closed on anything unrecognised."""
+    return str(decision).strip().lower() in GATED_DECISIONS
+
 
 def _now_iso() -> str:
     """Issuer-asserted UTC timestamp (second precision). Places the receipt in time
@@ -238,7 +251,7 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     # analogue of an empty model_digests. Reported separately, NOT folded into ok, so a
     # valid transcript stays valid while a containment PROOF requires ok AND this True.
     checks["containment_enforced"] = all(
-        str(e.payload.get("decision", "")).strip().lower() in ("allow", "deny")
+        decision_is_gated(e.payload.get("decision"))
         for e in log.events
         if e.kind == Kind.TOOL_CALL.value
     )

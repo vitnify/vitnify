@@ -10,6 +10,7 @@ from __future__ import annotations
 import os, sys, json, html
 
 from ._vendor.pck.cas import MerkleCAS  # noqa: E402
+from .certificate import decision_is_gated  # single source of truth for the containment rule
 
 def _canon(o) -> str:
     return json.dumps(o, sort_keys=True, separators=(",", ":"))
@@ -88,22 +89,41 @@ def render(run: dict) -> str:
     def warn_badge(text):
         return f'<div class="badge warn"><span class="dot"></span>{text}</div>'
 
-    # Whether the receipt PROVES containment, derived from the events the same way the
-    # verifier does: every tool decision must be a gated allow/deny. An observe-only
-    # run (a watching callback that records but does not gate) is a valid transcript but
-    # proves no containment -- it must NOT render as a plain green "verified" receipt,
-    # or a non-engineer is handed a badge that claims more than the receipt shows.
-    containment_enforced = all(
-        str(e["payload"].get("decision", "")).strip().lower() in ("allow", "deny")
-        for e in events if e["kind"] == "tool_call")
-    containment_badge = (badge(True, "Containment enforced", "")
-                         if containment_enforced
-                         else warn_badge("Containment observed — not proven"))
+    # Every containment claim on this page is DERIVED from the events with the SAME rule
+    # the verifier uses (decision_is_gated) -- never taken from the caller's verdict dict.
+    # An observe-only run (a watching callback that records but does not gate) is a valid
+    # transcript that proves no containment; it must not read as "contained" anywhere,
+    # headline included, or a non-engineer is handed a claim stronger than the receipt.
+    tool_events = [e for e in events if e["kind"] == "tool_call"]
+    containment_enforced = all(decision_is_gated(e["payload"].get("decision")) for e in tool_events)
+    blocked = any(str(e["payload"].get("decision", "")).strip().lower() == "deny" for e in tool_events)
+    cert_ok = bool(v.get("cert_ok"))
+    replay_ok = bool(v.get("replay_identical"))
 
-    badges = (badge(v["contained"], "Injection contained", "NOT contained")
-              + badge(v["replay_identical"], "Replay bit-identical", "Replay diverged")
-              + badge(v["cert_ok"], "Certificate verified", "Certificate FAILED")
-              + containment_badge)
+    if not containment_enforced:
+        containment_badge = warn_badge("Containment observed — not proven")
+    elif blocked:
+        containment_badge = badge(True, "Injection contained", "")   # an ungranted call was refused
+    else:
+        containment_badge = badge(True, "Containment enforced", "")  # every call gated; none needed blocking
+
+    badges = (containment_badge
+              + badge(replay_ok, "Replay bit-identical", "Replay diverged")
+              + badge(cert_ok, "Certificate verified", "Certificate FAILED"))
+
+    # Headline asserts ONLY what holds. "contained" tracks containment_enforced (not the
+    # caller), so the observe-only page drops the word instead of retracting it below.
+    claims = (["contained"] if containment_enforced else []) \
+        + (["replayed bit-for-bit"] if replay_ok else []) \
+        + (["cryptographically certified"] if cert_ok else [])
+    if not claims:
+        headline = "Recorded agent run."
+    elif len(claims) == 1:
+        headline = f"This agent run was {claims[0]}."
+    elif len(claims) == 2:
+        headline = f"This agent run was {claims[0]} and {claims[1]}."
+    else:
+        headline = "This agent run was " + ", ".join(claims[:-1]) + f", and {claims[-1]}."
 
     cert_rows = "".join(
         f'<div class="crow"><span class="ck">{k}</span><span class="cv mono">{_esc(val)}</span></div>'
@@ -112,8 +132,8 @@ def render(run: dict) -> str:
             ("capabilities granted", ", ".join(cert["capabilities"])),
             ("event-log root", cert["event_root"]),
             ("chain head", cert["head_hash"]),
-            ("certificate id", cert["digest"]),
-            ("signature (HMAC)", cert["sig"]),
+            ("certificate id", cert.get("digest", "—")),
+            ("signature", cert.get("sig", "—")),
         ])
 
     return f"""<title>Agent Replay Certificate</title>
@@ -192,7 +212,7 @@ footer{{color:var(--ink-dim);font-size:12px;margin-top:26px;text-align:center;}}
 <div class="wrap">
   <header class="top">
     <div class="eyebrow">Vitnify &middot; Execution Certificate</div>
-    <h1>This agent run was contained, replayed bit-for-bit, and cryptographically certified.</h1>
+    <h1>{_esc(headline)}</h1>
     <p class="task">Task recorded: &ldquo;{_esc(run.get('task','(agent run)'))}&rdquo;</p>
   </header>
 
