@@ -13,14 +13,14 @@ import json
 from dataclasses import dataclass, asdict
 from enum import Enum
 
-try:
-    import blake3 as _blake3
-    def _h32(b: bytes) -> str:
-        return _blake3.blake3(b).hexdigest()
-except ImportError:  # stdlib fallback; wire format is identical either way
-    import hashlib
-    def _h32(b: bytes) -> str:
-        return hashlib.blake2b(b, digest_size=32).hexdigest()
+# BLAKE3 is a hard dependency and DEFINES the wire format: a blake2b digest is a
+# different value, so there is no silent stdlib fallback -- one would make honest
+# receipts indistinguishable from forgeries across implementations (and the receipt
+# carries no hash-suite identifier to tell them apart). A normal `pip install
+# vitnify` always resolves the wheel; a missing blake3 fails loudly, not silently.
+import blake3 as _blake3
+def _h32(b: bytes) -> str:
+    return _blake3.blake3(b).hexdigest()
 
 
 def canon(obj) -> str:

@@ -3,6 +3,26 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.5] — 2026-08-20
+
+### Integrity
+- **Observe-only receipts can no longer masquerade as containment proofs.** The
+  record-only LangGraph callback records tool calls with an `observed` decision
+  (watched, not gated), and its receipt was byte-shaped like an enforced one with no
+  way to tell them apart. The verifier now reports **`containment_enforced`** — false
+  when any tool decision is not a gated `allow`/`deny` — so a valid transcript still
+  verifies (`ok=True`) but a containment *proof* requires `ok` **and**
+  `containment_enforced`.
+- **No silent hash fallback.** `blake3` is a hard dependency and defines the wire
+  format; the stdlib `blake2b` fallback (reachable only via `--no-deps`/vendoring)
+  produced different digests that were indistinguishable from forgery, and its code
+  comment claiming the wire format was "identical either way" was wrong. Removed — a
+  missing `blake3` now fails loudly.
+
+### Docs
+- Documented that `program_hash` is caller-asserted, and that an empty `model_digests`
+  (hosted or non-deterministic backend) means an integrity-only receipt.
+
 ## [0.2.4] — 2026-08-19
 
 ### Security

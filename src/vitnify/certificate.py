@@ -41,14 +41,12 @@ def _now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-try:
-    import blake3 as _blake3
-    def _digest32(b: bytes) -> str:
-        return _blake3.blake3(b).hexdigest()
-except ImportError:
-    import hashlib
-    def _digest32(b: bytes) -> str:
-        return hashlib.blake2b(b, digest_size=32).hexdigest()
+# BLAKE3 is a hard dependency and DEFINES the wire format: a blake2b digest is a
+# different value, so there is no silent stdlib fallback (see events.py). A missing
+# blake3 fails loudly rather than producing incompatible digests.
+import blake3 as _blake3
+def _digest32(b: bytes) -> str:
+    return _blake3.blake3(b).hexdigest()
 
 # cryptography is imported lazily inside the ed25519 helpers so the fallback path
 # still runs on a stock Python without the dependency.
@@ -121,10 +119,18 @@ def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key:
     """Build and sign a vitnify-receipt for a completed run.
 
     The model-computation digests are read from the log's llm_call events, so the
-    receipt binds exactly the model steps that were recorded. Each receipt is
-    stamped with an issuer-asserted UTC time, a random nonce, and a run id (pass
-    `run_id` to set your own; a random one is used otherwise) so distinct runs
-    produce distinct, time-placeable receipts. ed25519 (self-verifying) is the
+    receipt binds exactly the model steps that were recorded. `model_digests` is
+    EMPTY for a run with no recomputable model step (a hosted API, or a torch /
+    non-deterministic backend) -- such a receipt is integrity-only: it binds the
+    transcript, not the computation.
+
+    `program_hash` is CALLER-ASSERTED -- the receipt binds whatever string you pass;
+    it does not itself hash your agent's code. Pass a hash of the exact program or
+    config that ran if you want the receipt to pin it.
+
+    Each receipt is stamped with an issuer-asserted UTC time, a random nonce, and a
+    run id (pass `run_id` to set your own; a random one is used otherwise) so distinct
+    runs produce distinct, time-placeable receipts. ed25519 (self-verifying) is the
     canonical signing path; pass `priv`.
     """
     cas = MerkleCAS(log.chunks())
@@ -224,5 +230,17 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
         checks["signer_pinned"] = (
             sig_valid and cert.sig_alg == "ed25519" and cert.pubkey in set(pinned_pubkeys))
 
-    checks["ok"] = all(checks.values())
+    # Enforcement vs observation. An "allow"/"deny" decision came from the capability
+    # wall -- the call was GATED. Any other value (e.g. "observed" from the record-only
+    # callback adapter) means it was WATCHED, not enforced, so the receipt is a
+    # tamper-evident transcript, not proof containment was applied -- the containment
+    # analogue of an empty model_digests. Reported separately, NOT folded into ok, so a
+    # valid transcript stays valid while a containment PROOF requires ok AND this True.
+    checks["containment_enforced"] = all(
+        str(e.payload.get("decision", "")).strip().lower() in ("allow", "deny")
+        for e in log.events
+        if e.kind == Kind.TOOL_CALL.value
+    )
+
+    checks["ok"] = all(v for k, v in checks.items() if k != "containment_enforced")
     return checks

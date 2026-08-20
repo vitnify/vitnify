@@ -120,3 +120,23 @@ def test_f12_unknown_event_kind_is_rejected():
     log.append(Kind.AGENT_STEP, {"state": "done"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
     assert verify_certificate(cert, log)["ok"] is True
+
+
+def test_observe_only_receipt_is_flagged_not_masqueraded():
+    # A record-only adapter records tool calls with decision "observed" -- watched,
+    # not gated. Such a receipt is a valid transcript (ok=True) but must be FLAGGED
+    # containment_enforced=False so it can't pass as a containment proof; an enforced
+    # allow/deny receipt reads containment_enforced=True.
+    priv, _ = gen_ed25519()
+
+    def receipt(decision, caps):
+        log = EventLog()
+        log.append(Kind.TOOL_CALL, {"tool": "send_email", "args": ["x"], "decision": decision, "result": "sent"})
+        cert, _ = issue_certificate("prog", caps, log, priv=priv)
+        return verify_certificate(cert, log)
+
+    r = receipt("OBSERVED", ["read_docs", "send_email"])        # observed + granted
+    assert r["ok"] is True and r["containment_enforced"] is False
+    assert receipt("OBSERVED", ["read_docs"])["ok"] is False    # observed ungranted tool ran -> rejected
+    r = receipt("ALLOW", ["read_docs", "send_email"])           # enforced allow -> real proof
+    assert r["ok"] is True and r["containment_enforced"] is True
