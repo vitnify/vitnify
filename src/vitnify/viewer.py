@@ -192,7 +192,7 @@ def render(run: dict) -> str:
     sig_note = f"Signed with {_esc(sig_alg)}. " if sig_alg else ""
     footer_text = (sig_note +
         "Verified offline from the receipt alone — no model, no network, no secret. "
-        "Level-2 recomputation (re-run the model to reproduce the committed logits) is the "
+        "Level-2 recomputation (re-run the model to reproduce the committed output tokens) is the "
         "dispute path for a contested run, not required for the integrity, containment, and "
         "authority verdicts above.")
 

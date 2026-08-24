@@ -118,6 +118,10 @@ def test_footer_makes_no_unbacked_claims():
     assert "batch-invariant" not in html and "batch invariant" not in html
     assert "HMAC signing" not in html
     assert "ed25519" in html                         # the real signature algorithm, shown
+    # L2 reproduces the committed OUTPUT TOKENS, not logits (the shipped binary emits
+    # output_tokens + hash, n_ops=0; logits are a stronger, non-default mode). Never overclaim.
+    assert "committed logits" not in html
+    assert "committed output tokens" in html
 
 
 def test_cert_failed_drops_all_derived_claims():

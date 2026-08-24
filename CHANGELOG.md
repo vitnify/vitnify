@@ -3,6 +3,17 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.4] — 2026-08-24
+
+### Fixed
+- **Wording: level 2 reproduces the committed OUTPUT TOKENS, not "logits."** The viewer
+  footer and the README said level-2 recompute reproduces the "committed logits" — an
+  overclaim: the shipped binary commits `output_tokens` + `output_tokens_hash` with
+  `n_ops = 0` (per-op / activation records, which would include logits, are an available
+  mode it does not emit). Corrected to "committed output tokens," and guarded in
+  `tests/test_viewer.py::test_footer_makes_no_unbacked_claims`. Committing logits would be
+  a stronger claim than the engine makes — the one direction never to drift.
+
 ## [0.4.3] — 2026-08-24
 
 Two more viewer surfaces the verdict split hadn't reached — both making claims the run

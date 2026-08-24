@@ -65,7 +65,9 @@ See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/bl
 **Two verification levels — and when to use each.** *Level 1 (integrity)* is offline,
 instant, and needs no model — recompute the Merkle root and check the signature; this is
 the default for every receipt, and it's what proves containment and tamper-evidence.
-*Level 2 (recompute)* additionally re-runs the model to reproduce the committed logits.
+*Level 2 (recompute)* additionally re-runs the model to reproduce the committed output
+tokens (per-op / activation records — a stronger commitment — are an available mode the
+shipped binary does not emit).
 It is the **dispute path** — run on a contested subset when someone challenges a specific
 decision, **not** on every receipt inline. It is deliberately slow: the pinned-order
 deterministic engine trades throughput for bit-exactness, roughly two orders of magnitude
