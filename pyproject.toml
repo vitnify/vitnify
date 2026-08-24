@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vitnify"
+version = "0.4.6"
+description = "Execution receipts for AI agents: contain, deterministically reconstruct, and cryptographically certify a run."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "vitnify" }]
+keywords = ["ai-agents", "security", "execution-certificate", "deterministic-inference", "reproducibility", "audit"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+]
+dependencies = ["blake3>=0.4", "cryptography>=41"]
+
+[project.optional-dependencies]
+langgraph = ["langgraph", "langchain-core"]
+mcp = ["mcp"]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://vitnify.com"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"vitnify._vendor.pck" = ["*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+markers = [
+  "l2: level-2 recomputation tests (need VITNI_GGUF + VITNI_RECEIPT_BIN)",
+  "adapter: framework adapter tests (need optional deps: langgraph/mcp)",
+]

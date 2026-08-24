@@ -3,7 +3,11 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
-## [0.4.5] — 2026-08-24
+## [0.4.6] — 2026-08-24
+
+> 0.4.5 was tagged but never published: a release-script bug truncated
+> `pyproject.toml`, the build failed, and nothing reached PyPI. 0.4.6 ships the
+> 0.4.5 changes with a valid manifest.
 
 Extend redaction-by-default to the drop-in adapters — the paths a real MCP/LangGraph
 agent actually uses. Found in a security audit of the surfaces beyond the core verifier.
