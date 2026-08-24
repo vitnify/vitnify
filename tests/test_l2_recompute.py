@@ -55,7 +55,7 @@ def test_receipt_binds_model_digest_and_level2_reproduces(engine):
     cert, _ = issue_certificate("program_hash_demo", ["read_docs"], log, priv=priv)
 
     # level 1: offline integrity
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
     # level 2: the SHIPPED diagnostic verifier reproduces every bound step against the
     # real engine + real weights.

@@ -14,7 +14,7 @@ import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from vitnify.events import EventLog, Kind
 from vitnify.engine import Engine, prompt_hash
-from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.certificate import issue_certificate, verify_authorized, gen_ed25519
 
 GGUF = os.environ["VITNI_GGUF"]
 eng = Engine(GGUF, model_id="tinyllama-1.1b-chat-Q4_K_M")
@@ -38,8 +38,10 @@ cert, _ = issue_certificate("program_hash_demo", ["read_docs"], log, priv=priv)
 print("receipt digest : %s  (%s)" % (cert.digest()[:16] + "…", cert.sig_alg))
 print("bound model_digest matches spec 7a2e28c9:", cert.model_digests[0].startswith("7a2e28c9"))
 
-# --- level 1: offline integrity ---
-v1 = verify_certificate(cert, log)
+# --- level 1: offline integrity + signer authority ---
+# Production verify: pin the trusted signer(s). verify_authorized fails closed unless the
+# receipt was signed by a key on your allow-list, so a re-signed forgery never verifies.
+v1 = verify_authorized(cert, log, pinned_pubkeys=[pub])
 print("level-1 verify :", "OK" if v1["ok"] else "FAIL", v1)
 
 # --- level 2: recompute the model; the bound digest must reproduce ---

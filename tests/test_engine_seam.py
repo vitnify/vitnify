@@ -67,7 +67,7 @@ def test_carried_fields_reach_the_receipt_and_accessors():
     assert log.model_digests() == [step["model_digest"]]
     assert log.model_regimes() == [step["regime"]]
     assert log.model_weights_hashes() == [step["weights_hash"]]
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_carried_fields_are_bound_not_just_recorded():
@@ -76,7 +76,7 @@ def test_carried_fields_are_bound_not_just_recorded():
     for field, forged in (("regime", "vitni-regime-2"), ("weights_hash", "0" * 64)):
         _step, log, cert = _receipt()
         log.events[0].payload[field] = forged
-        assert verify_certificate(cert, log)["ok"] is False, f"tampering {field!r} did not break the receipt"
+        assert verify_certificate(cert, log, require_authority=False)["ok"] is False, f"tampering {field!r} did not break the receipt"
 
 
 def test_absent_regime_and_weights_record_none_explicitly():
@@ -88,4 +88,4 @@ def test_absent_regime_and_weights_record_none_explicitly():
     cert, _ = issue_certificate("prog", [], log, priv=priv)
     assert log.model_regimes() == [None]
     assert log.model_weights_hashes() == [None]
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True

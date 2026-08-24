@@ -82,7 +82,7 @@ def test_langgraph_graph_records_replays_and_certifies():
     rep_log = run(Session(lm, caps, tools, invariant=True, recorded=rec_log))
 
     assert rep_log.chunks() == rec_log.chunks()          # replay bit-identical
-    assert verify_certificate(rec_cert, rep_log)["ok"]   # certificate verifies
+    assert verify_certificate(rec_cert, rep_log, require_authority=False)["ok"]   # certificate verifies
     assert exfil == []                                   # ungranted tool contained
 
 
@@ -136,4 +136,4 @@ def test_mcp_broker_contains_records_and_replays():
                                    replay=recorded_mcp_results(rec_log))))
     assert replay_client.calls == []                    # no live re-call on replay
     assert rep_log.chunks() == rec_log.chunks()         # bit-identical
-    assert verify_certificate(rec_cert, rep_log)["ok"]  # certificate verifies against replay
+    assert verify_certificate(rec_cert, rep_log, require_authority=False)["ok"]  # certificate verifies against replay

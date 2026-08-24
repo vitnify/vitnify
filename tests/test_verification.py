@@ -19,7 +19,7 @@ from conftest import CAPS, clone, tool_idx
 
 def test_pristine_receipt_verifies(signed):
     cert, log = signed[0], signed[1]
-    checks = verify_certificate(cert, log)
+    checks = verify_certificate(cert, log, require_authority=False)
     assert checks["ok"] is True
     assert all(checks.values())
     for k in ("format", "root_matches", "head_matches", "count_matches",
@@ -63,7 +63,7 @@ def test_every_log_mutation_is_rejected(signed, mutate):
     cert, log = signed[0], signed[1]
     tampered = clone(log)
     mutate(tampered)
-    assert verify_certificate(cert, tampered)["ok"] is False
+    assert verify_certificate(cert, tampered, require_authority=False)["ok"] is False
 
 
 def test_model_digest_swap_is_rejected(ed_keys):
@@ -71,11 +71,11 @@ def test_model_digest_swap_is_rejected(ed_keys):
     log = EventLog()
     log.append_llm_call("ph0", [1, 2, 3], seed=0, model_digest="d_real")
     cert, _ = issue_certificate("prog", CAPS, log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
     forged = clone(log)
     forged.events[0].payload["model_digest"] = "d_swapped"
-    checks = verify_certificate(cert, forged)
+    checks = verify_certificate(cert, forged, require_authority=False)
     assert checks["model_digests_match"] is False
     assert checks["ok"] is False
 
@@ -85,7 +85,7 @@ def test_flipping_a_signature_byte_is_rejected(signed):
     forged = copy.deepcopy(cert)
     # flip the first hex nibble of the signature
     forged.sig = ("1" if cert.sig[0] == "0" else "0") + cert.sig[1:]
-    checks = verify_certificate(forged, log)
+    checks = verify_certificate(forged, log, require_authority=False)
     assert checks["sig_valid"] is False
     assert checks["ok"] is False
 
@@ -95,7 +95,7 @@ def test_tampering_capabilities_in_the_receipt_is_rejected(signed):
     forged = copy.deepcopy(cert)
     forged.capabilities = list(cert.capabilities) + ["send_external"]
     # digest now differs from what was signed -> signature no longer matches
-    checks = verify_certificate(forged, log)
+    checks = verify_certificate(forged, log, require_authority=False)
     assert checks["sig_valid"] is False
     assert checks["ok"] is False
 
@@ -104,4 +104,4 @@ def test_wrong_format_string_is_rejected(signed):
     cert, log = signed[0], signed[1]
     forged = copy.deepcopy(cert)
     forged.v = "vitnify-receipt v1"
-    assert verify_certificate(forged, log)["ok"] is False
+    assert verify_certificate(forged, log, require_authority=False)["ok"] is False

@@ -45,7 +45,7 @@ for e in rec_log.events:
 
 rep_log = replay_run(agent, lm, CAPS, tools, rec_log, invariant=True)
 same  = rep_log.chunks() == rec_log.chunks()
-check = verify_certificate(rec_cert, rep_log, key=KEY)
+check = verify_certificate(rec_cert, rep_log, key=KEY, require_authority=False)
 n_tools = sum(1 for e in rec_log.events if e.kind == Kind.TOOL_CALL.value)
 n_deny  = sum(1 for e in rec_log.events if e.kind == Kind.TOOL_CALL.value and e.payload["decision"]=="DENY")
 

@@ -67,7 +67,7 @@ for e in rec_log.events:
 rep = Session(lm, CAPS, tools, invariant=True, recorded=rec_log)
 rep_log = run(rep)
 same = rep_log.chunks() == rec_log.chunks()
-check = verify_certificate(rec_cert, rep_log)
+check = verify_certificate(rec_cert, rep_log, require_authority=False)
 n_deny = sum(1 for e in rec_log.events if e.kind == "tool_call" and e.payload["decision"] == "DENY")
 
 print("\n=== VERDICT ===")

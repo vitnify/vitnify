@@ -25,7 +25,7 @@ def test_honest_signed_receipt_verifies():
     priv, _ = gen_ed25519()
     log = _log("read_docs", "allow")
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_f1_unsigned_receipt_is_rejected():
@@ -33,7 +33,7 @@ def test_f1_unsigned_receipt_is_rejected():
     log = _log("wire_transfer", "allow")
     cert, _ = issue_certificate("prog", ["wire_transfer"], log)  # no priv/key -> unsigned
     assert cert.sig_alg == "none"
-    result = verify_certificate(cert, log)
+    result = verify_certificate(cert, log, require_authority=False)
     assert result["sig_valid"] is False
     assert result["ok"] is False
 
@@ -42,9 +42,9 @@ def test_f2_hmac_without_key_is_rejected():
     log = _log("read_docs", "allow")
     cert, _ = issue_certificate("prog", ["read_docs"], log, key=b"shared-secret")
     # verifier holds no key -> cannot check -> must not report success
-    assert verify_certificate(cert, log)["ok"] is False
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is False
     # with the key it verifies
-    assert verify_certificate(cert, log, key=b"shared-secret")["ok"] is True
+    assert verify_certificate(cert, log, key=b"shared-secret", require_authority=False)["ok"] is True
 
 
 def test_f3_allowed_tool_outside_caps_is_rejected():
@@ -52,7 +52,7 @@ def test_f3_allowed_tool_outside_caps_is_rejected():
     # properly signed, but declares only read_docs while ALLOWING wire_transfer
     log = _log("wire_transfer", "allow")
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    result = verify_certificate(cert, log)
+    result = verify_certificate(cert, log, require_authority=False)
     assert result["sig_valid"] is True          # signature is fine...
     assert result["caps_consistent"] is False   # ...but containment is not proven
     assert result["ok"] is False
@@ -63,7 +63,7 @@ def test_denied_ungranted_tool_still_verifies():
     priv, _ = gen_ed25519()
     log = _log("send_email", "deny")
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_f5_signer_pinning():
@@ -74,7 +74,7 @@ def test_f5_signer_pinning():
     assert verify_certificate(cert, log, pinned_pubkeys=[other_pub])["ok"] is False
     assert verify_certificate(cert, log, pinned_pubkeys=[pub])["ok"] is True
     # unpinned verification (no allow-list) still succeeds on integrity + self-sig
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_f11_containment_not_evaded_by_decision_string():
@@ -87,15 +87,15 @@ def test_f11_containment_not_evaded_by_decision_string():
             payload["decision"] = decision
         log = EventLog(); log.append(Kind.TOOL_CALL, payload)
         cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)   # wire_transfer ungranted
-        assert verify_certificate(cert, log)["ok"] is False, repr(decision)
+        assert verify_certificate(cert, log, require_authority=False)["ok"] is False, repr(decision)
     # an ungranted tool mislabelled DENY but still carrying a result is also rejected
     log = EventLog(); log.append(Kind.TOOL_CALL, {"tool": "wire_transfer", "decision": "DENY", "result": "SENT"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is False
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is False
     # ...but a clean denial of an ungranted tool still verifies (containment working)
     log = EventLog(); log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "DENY"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_f12_unknown_event_kind_is_rejected():
@@ -107,12 +107,12 @@ def test_f12_unknown_event_kind_is_rejected():
     # an ungranted tool hidden under an unrecognised kind must not escape containment
     log = EventLog(); log.append("TOOL_CALL", {"tool": "wire_transfer", "decision": "ALLOW", "result": "x"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    r = verify_certificate(cert, log)
+    r = verify_certificate(cert, log, require_authority=False)
     assert r["kinds_known"] is False and r["ok"] is False
     # a model step hidden under an unrecognised kind must not verify either
     log = EventLog(); log.append("LLM_CALL", {"prompt_hash": "p", "tokens": [1], "seed": 0, "model_digest": "d"})
     cert, _ = issue_certificate("prog", [], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is False
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is False
     # every recognised kind still verifies
     log = EventLog()
     log.append(Kind.LLM_CALL, {"prompt_hash": "p", "tokens": [1], "seed": 0, "model_digest": "d"})
@@ -120,7 +120,7 @@ def test_f12_unknown_event_kind_is_rejected():
     log.append(Kind.ENTROPY, {"source": "clock", "value": 1})
     log.append(Kind.AGENT_STEP, {"state": "done"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_observe_only_receipt_is_flagged_not_masqueraded():
@@ -134,7 +134,7 @@ def test_observe_only_receipt_is_flagged_not_masqueraded():
         log = EventLog()
         log.append(Kind.TOOL_CALL, {"tool": "send_email", "args": ["x"], "decision": decision, "result": "sent"})
         cert, _ = issue_certificate("prog", caps, log, priv=priv)
-        return verify_certificate(cert, log)
+        return verify_certificate(cert, log, require_authority=False)
 
     r = receipt("OBSERVED", ["read_docs", "send_email"])        # observed + granted
     assert r["ok"] is True and r["containment_enforced"] is False
@@ -151,6 +151,6 @@ def test_empty_log_fails_closed_not_raises():
     log = EventLog()                      # zero events
     # A signed certificate that merely CLAIMS an empty run must still not verify.
     cert = ExecutionCertificate("prog", [], "0" * 64, 0, "genesis").sign_ed25519(priv)
-    checks = verify_certificate(cert, log)   # must not raise
+    checks = verify_certificate(cert, log, require_authority=False)   # must not raise
     assert checks["ok"] is False
     assert checks["root_matches"] is False

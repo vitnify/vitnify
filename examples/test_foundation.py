@@ -40,12 +40,12 @@ log = run_agent(caps={"read_public"})
 cert, cas = issue_certificate(PROG, {"read_public"}, log, key=KEY)
 print(f"\nrun recorded: {len(log)} events   exfiltrated = {EXFIL}   (empty = contained)")
 print(f"certificate: caps={cert.capabilities} root={cert.event_root[:20]}... sig={cert.sig[:20]}...")
-v = verify_certificate(cert, log, key=KEY)
+v = verify_certificate(cert, log, key=KEY, require_authority=False)
 print(f"offline verify (untampered): ok={v['ok']}")
 for e in log.events:
     if e.payload.get("tool") == "send_external":
         e.payload["decision"] = "ALLOW"; e.payload["result"] = "SENT"
-v2 = verify_certificate(cert, log, key=KEY)
+v2 = verify_certificate(cert, log, key=KEY, require_authority=False)
 print(f"offline verify (DENY->ALLOW tamper): ok={v2['ok']}")
 ok = v["ok"] and not v2["ok"] and EXFIL == []
 print("\nRESULT:", "FOUNDATION COMPOSES OK (contained, certified, tamper-evident)" if ok else "PROBLEM")

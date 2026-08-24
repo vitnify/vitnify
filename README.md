@@ -24,7 +24,7 @@ pip install vitnify
 ```python
 from vitnify.events import EventLog, Kind
 from vitnify.engine import Engine, prompt_hash
-from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.certificate import issue_certificate, verify_authorized, gen_ed25519
 
 eng = Engine("model.gguf", model_id="my-model")        # deterministic backend
 log = EventLog()
@@ -40,8 +40,8 @@ log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny"})  # ungran
 priv, pub = gen_ed25519()
 cert, _ = issue_certificate("program_hash", ["read_docs"], log, priv=priv)
 
-checks = verify_certificate(cert, log)   # level 1: offline integrity — no model, no secret
-assert checks["ok"]                       # signed, unaltered, and no ungranted tool ran
+checks = verify_authorized(cert, log, pinned_pubkeys=[pub])  # L1: offline, no model/secret; authorised signer
+assert checks["ok"]                       # signed by a trusted key, unaltered, no ungranted tool ran
 assert checks["containment_enforced"]     # every tool call was GATED, not merely observed
 # A receipt can be ok=True yet containment_enforced=False — a valid transcript from a
 # watch-only integration proves what ran, not that anything was contained. A containment
@@ -58,7 +58,7 @@ See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/bl
 - **Capability containment** — ungranted tools are structurally unreachable.
 - **Deterministic replay** — re-run a contested run and get the identical result, bit-for-bit.
 - **Bit-for-bit receipts** — the model's exact computation, bound and signed.
-- **Redaction (opt-in)** — `RedactingBroker` commits *salted* hashes of tool payloads instead of cleartext, on allow **and** deny, so PHI/secrets never enter the receipt; disclose one event at a time with an inclusion proof (`vitnify.redact`). The default `Broker` records payloads in **cleartext** — use `RedactingBroker` for regulated data (see the callout below).
+- **Redaction by default** — the `Broker` commits *salted* hashes of tool payloads instead of cleartext, on allow **and** deny, so PHI/secrets never enter the receipt; cleartext stays in an org-held `Vault`, disclosed one event at a time with an inclusion proof (`vitnify.redact`). Pass `allow_cleartext=True` for the old behaviour (non-sensitive data only).
 - **Offline verification** — anyone verifies with no model, network, or secret.
 - **Drop-in** — wraps existing **LangGraph** and **MCP** agents (`pip install vitnify[langgraph]` / `[mcp]`).
 
@@ -73,37 +73,35 @@ below native inference (~0.45 tok/s vs ~58 for Mistral-7B Q4_K_M on the same Met
 Fleet throughput still scales the normal way — L2 is embarrassingly parallel across
 receipts; a single recompute is simply not something you do on the hot path.
 
-**Signer authority.** `verify_certificate` proves integrity and signer *continuity* from a
-receipt's own key. For *authority* (that an approved runtime signed it), use
-`verify_authorized(cert, log, pinned_pubkeys=...)`, which fails closed unless the signer is
-on your allow-list — a re-signed forgery then never verifies. Anchor the pinned key in a
-TPM/enclave for the strongest form.
+**Signer authority.** `verify_certificate` **requires an authorised signer by default**
+(0.4.0): with no trust anchor it fails closed, because an embedded key proves integrity and
+*continuity*, not that an approved runtime signed the receipt. Pin the trusted signer(s) —
+`verify_authorized(cert, log, pinned_pubkeys=…)` is the production entry point — so a
+re-signed forgery never verifies. Anchor the pinned key in a TPM/enclave for the strongest
+form. Pass `require_authority=False` for an integrity-only verdict (continuity, not authority).
 
-**Program binding.** `program_hash` is caller-asserted by default. Pass
+**Program binding.** `program_hash` is caller-asserted unless you bind it. Pass
 `derive_program_hash(paths_or_bytes)` at issue time and `verify_certificate(..., program=…)`
 at verify time to make the receipt bind the *actual* program, not a label.
 
-> ### ⚠️ Defaults are opt-in — read this for regulated data
+> ### ✅ Safe by default (0.4.0)
 >
-> The three protections above are **opt-in in 0.3.x**, and the bare defaults are *not*
-> safe for regulated data. Be explicit about it: the default `Broker` records tool
-> payloads in **cleartext**; `verify_certificate` proves integrity and signer
-> *continuity* but **not authority**; and a caller-asserted `program_hash` binds nothing
-> on its own. For PHI/secrets, an authorised-signer requirement, or real program binding,
-> you **must** opt in:
+> The `Broker` **redacts** (no tool payload enters the receipt) and `verify_certificate`
+> **requires signer authority** (a re-signed forgery can't verify without a trusted pin).
+> Relax either only where appropriate, and do it explicitly:
 >
 > ```python
-> from vitnify.redact import RedactingBroker, Vault
-> from vitnify.certificate import issue_certificate, verify_authorized, derive_program_hash
->
-> vault  = Vault()
-> broker = RedactingBroker(caps, tools, log, vault)                 # no cleartext in the receipt
-> cert, _ = issue_certificate(derive_program_hash(SRC), caps, log, priv=priv)  # bind the real code
-> checks = verify_authorized(cert, log, pinned_pubkeys=[trusted_key], program=SRC)  # authority + binding
+> broker = Broker(caps, tools, log, allow_cleartext=True)   # record payloads in cleartext (non-sensitive only)
+> verify_certificate(cert, log, require_authority=False)    # integrity-only verdict (continuity, not authority)
 > ```
 >
-> Safe-by-default is planned; until then treat the bare `Broker` / `verify_certificate`
-> as **integrity-only**, not a containment or authority control for sensitive data.
+> The production verify pins the trusted signer(s) and can bind the program:
+>
+> ```python
+> from vitnify.certificate import verify_authorized, derive_program_hash
+> cert, _ = issue_certificate(derive_program_hash(SRC), caps, log, priv=priv)  # bind the real code
+> checks  = verify_authorized(cert, log, pinned_pubkeys=[trusted_key], program=SRC)  # authority + binding
+> ```
 
 The deterministic engine is [`vitni-tensor`](https://github.com/vitnify/vitni-tensor);
 the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it).

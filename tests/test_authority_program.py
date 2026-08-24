@@ -24,14 +24,14 @@ def test_program_matches_when_receipt_names_real_code():
     log, (priv, _) = _log(), gen_ed25519()
     code = b"def agent(): ..."
     cert, _ = issue_certificate(derive_program_hash(code), ["read"], log, priv=priv)
-    r = verify_certificate(cert, log, program=code)
+    r = verify_certificate(cert, log, program=code, require_authority=False)
     assert r["program_matches"] is True and r["ok"] is True
 
 
 def test_wrong_program_fails_closed():
     log, (priv, _) = _log(), gen_ed25519()
     cert, _ = issue_certificate(derive_program_hash(b"real"), ["read"], log, priv=priv)
-    r = verify_certificate(cert, log, program=b"different")
+    r = verify_certificate(cert, log, program=b"different", require_authority=False)
     assert r["program_matches"] is False and r["ok"] is False
 
 
@@ -40,8 +40,8 @@ def test_arbitrary_program_hash_does_not_bind_real_code():
     # verifier checks it against the actual program.
     log, (priv, _) = _log(), gen_ed25519()
     cert, _ = issue_certificate("literally anything I type here", ["read"], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True                        # unbound: passes
-    assert verify_certificate(cert, log, program=b"real code")["ok"] is False  # bound: caught
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True                        # unbound: passes
+    assert verify_certificate(cert, log, program=b"real code", require_authority=False)["ok"] is False  # bound: caught
 
 
 # ---------------- B: signer authority requires a pinned anchor ----------------
@@ -57,7 +57,7 @@ def test_authorized_rejects_resigned_forgery():
     priv2, _ = gen_ed25519()
     forged = copy.deepcopy(cert)
     forged.sign_ed25519(priv2)                                   # re-sign with attacker key
-    assert verify_certificate(forged, log)["ok"] is True          # self-verifies (the limitation)
+    assert verify_certificate(forged, log, require_authority=False)["ok"] is True          # self-verifies (the limitation)
     assert verify_authorized(forged, log, [pub])["ok"] is False   # not on the pinned allow-list
 
 

@@ -49,7 +49,7 @@ for e in rec_log.events:
 
 rep_log = replay_run(agent, lm, CAPS, tools, rec_log, invariant=True)
 same  = rep_log.chunks() == rec_log.chunks()
-check = verify_certificate(rec_cert, rep_log)     # ed25519: no secret needed
+check = verify_certificate(rec_cert, rep_log, require_authority=False)     # ed25519: no secret needed
 n_allow = sum(1 for e in rec_log.events if e.kind=="tool_call" and e.payload["decision"]=="ALLOW")
 n_deny  = sum(1 for e in rec_log.events if e.kind=="tool_call" and e.payload["decision"]=="DENY")
 

@@ -209,7 +209,7 @@ def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key:
 
 
 def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | None = None,
-                       pinned_pubkeys=None, program=None) -> dict:
+                       pinned_pubkeys=None, program=None, require_authority: bool = True) -> dict:
     """Level-1 verification: recompute everything from the raw events; trust nothing.
 
     Fails CLOSED. A receipt is only `ok` if a signature was actually checked and
@@ -301,11 +301,19 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
         cert.v == "vitnify-receipt v1"
         and any(x is not None for x in (cert.issued_at, cert.nonce, cert.run_id)))
 
-    # Optional signer pinning -- an embedded key proves continuity, not authority.
-    # When an allow-list is supplied, the signer must be ed25519 and on the list.
+    # Signer AUTHORITY -- SAFE DEFAULT (0.4.0). An embedded key proves integrity and
+    # signer *continuity*, not that an APPROVED runtime signed the receipt: a forger can
+    # re-sign an edited receipt with their OWN key and it self-verifies. So authority must
+    # be anchored -- supply `pinned_pubkeys` (an allow-list); the signer must be ed25519
+    # and on it. With NO anchor the receipt cannot establish authority, so `ok` fails
+    # closed. Pass `require_authority=False` for an integrity-only verdict (continuity, not
+    # authority) -- e.g. an offline consistency check with no trust root. The strongest
+    # anchor pins a TPM/enclave-resident key.
     if pinned_pubkeys is not None:
         checks["signer_pinned"] = (
             sig_valid and cert.sig_alg == "ed25519" and cert.pubkey in set(pinned_pubkeys))
+    elif require_authority:
+        checks["signer_pinned"] = False
 
     # Program binding. `program_hash` is caller-asserted by default -- issue_certificate
     # binds whatever string you pass, so "literally anything I type" verifies. Supplying

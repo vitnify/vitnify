@@ -3,6 +3,31 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.0] — 2026-08-24
+
+**Safe by default (BREAKING).** The 0.3.x fixes added a safe path *beside* the unsafe
+default; a reviewer's through-line was that "safe unless you opt out" vs "unsafe unless
+you opt in" is the whole difference for a regulated buyer. The defaults now flip.
+
+### Changed (breaking)
+- **`Broker` redacts by default.** It commits *salted* hashes of tool args/results (on
+  allow AND deny) and keeps the cleartext in an org-held `Vault` at `broker.vault`, so no
+  payload enters the receipt. The old cleartext behaviour is `Broker(..., allow_cleartext=True)`
+  (non-sensitive data only). `RedactingBroker` remains as an explicit alias.
+- **`verify_certificate` requires signer authority by default** (`require_authority=True`).
+  With no `pinned_pubkeys`, `signer_pinned` is `False` and `ok` fails closed — a receipt
+  re-signed with an attacker's own key no longer verifies just because it's internally
+  consistent. `verify_authorized(cert, log, pinned_pubkeys=…)` is the production entry
+  point. Pass `require_authority=False` for an integrity-only verdict (continuity, not
+  authority) — e.g. an offline consistency check with no trust root.
+
+### Migration
+- Recording non-sensitive payloads and want them readable? `Broker(..., allow_cleartext=True)`.
+- Verifying without a trust anchor (integrity only)? `verify_certificate(..., require_authority=False)`.
+- Production: pin your signer(s) — `verify_authorized(cert, log, pinned_pubkeys=[...])` — and
+  bind the program with `derive_program_hash` + `verify_certificate(..., program=…)`.
+- Guards in `tests/test_safe_defaults.py` fail the build if either default silently reverts.
+
 ## [0.3.1] — 2026-08-24
 
 Fixes from a second review pass on 0.3.0.

@@ -112,7 +112,7 @@ def test_viewer_never_claims_containment_without_verified_gating():
     for decisions, cert_ok in cases:
         run, log = _build(decisions, cert_ok=cert_ok)
         says_contained = "contained" in _headline(render(run)).lower()
-        enforced = verify_certificate(_recert(run), log)["containment_enforced"]
+        enforced = verify_certificate(_recert(run), log, require_authority=False)["containment_enforced"]
         if says_contained:
             assert cert_ok and bool(decisions) and enforced, (decisions, cert_ok)
 

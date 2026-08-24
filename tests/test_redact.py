@@ -30,7 +30,7 @@ def test_no_cleartext_in_receipt_allow_or_deny():
 
 def test_receipt_still_verifies_and_contains():
     log, _ = _run()
-    v = verify_certificate(_cert(log), log)
+    v = verify_certificate(_cert(log), log, require_authority=False)
     assert v["ok"] and v["containment_enforced"] and v["caps_consistent"]
 
 

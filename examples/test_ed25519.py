@@ -23,18 +23,18 @@ log = run()
 cert, _ = issue_certificate(PROG, {"read_public"}, log, priv=priv)   # signed with PRIVATE key
 print(f"alg={cert.sig_alg}  pubkey={cert.pubkey[:24]}…  sig={cert.sig[:24]}…")
 
-v = verify_certificate(cert, log)                                    # verified with NO secret
+v = verify_certificate(cert, log, require_authority=False)                                    # verified with NO secret
 print(f"verify (no shared secret):            ok={v['ok']}  sig_valid={v['sig_valid']}")
 
 for e in log.events:                                                 # tamper a blocked call
     if e.payload.get("tool") == "send_external":
         e.payload["decision"] = "ALLOW"; e.payload["result"] = "SENT"
-v2 = verify_certificate(cert, log)
+v2 = verify_certificate(cert, log, require_authority=False)
 print(f"verify after DENY->ALLOW tamper:      ok={v2['ok']}  (root_matches={v2['root_matches']})")
 
 log2 = run(); cert2, _ = issue_certificate(PROG, {"read_public"}, log2, priv=priv)
 cert2.sig = cert2.sig[:-2] + ("00" if cert2.sig[-2:] != "00" else "01")   # corrupt the signature
-v3 = verify_certificate(cert2, log2)
+v3 = verify_certificate(cert2, log2, require_authority=False)
 print(f"verify with a forged/corrupted sig:   ok={v3['ok']}  sig_valid={v3['sig_valid']}")
 
 ok = v["ok"] and not v2["ok"] and not v3["ok"]

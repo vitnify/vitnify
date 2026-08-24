@@ -8,7 +8,7 @@ Run: python examples/redact_demo.py   (no model or network needed)
 import os, sys, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from vitnify.events import EventLog
-from vitnify.certificate import issue_certificate, verify_certificate, gen_ed25519
+from vitnify.certificate import issue_certificate, verify_authorized, gen_ed25519
 from vitnify.redact import RedactingBroker, Vault, disclose, verify_disclosure, cleartext_leak
 
 # Two patients' PHI -- exactly what must NOT end up in a shared, signed receipt.
@@ -32,7 +32,7 @@ sent, _ = broker.call("send_fax", PHI["mrn"], "regulator@evil")   # event 3
 
 priv, pub = gen_ed25519()
 cert, _ = issue_certificate("sha256:ehr-agent-v3", ["ehr_lookup", "summarize"], log, priv=priv)
-v = verify_certificate(cert, log)
+v = verify_authorized(cert, log, pinned_pubkeys=[pub])
 
 print("== redaction-by-default ==")
 print("blocked exfil attempt         :", sent is False)

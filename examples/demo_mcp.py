@@ -45,7 +45,7 @@ async def main():
         rep_log = EventLog()
         await scenario(MCPBroker(client, CAPS, rep_log, replay=recorded_mcp_results(rec_log)))  # replay
         same = rep_log.chunks() == rec_log.chunks()
-        check = verify_certificate(rec_cert, rep_log)
+        check = verify_certificate(rec_cert, rep_log, require_authority=False)
         return rec_log, same, check
 
 rec_log, same, check = asyncio.run(main())

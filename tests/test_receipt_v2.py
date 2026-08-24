@@ -28,7 +28,7 @@ def test_receipt_is_v2_and_carries_time_nonce_runid():
     assert body["issued_at"] == cert.issued_at
     assert body["nonce"] == cert.nonce
     assert body["run_id"] == cert.run_id
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
 
 def test_run_id_is_honoured_when_supplied():
@@ -44,7 +44,7 @@ def test_tampering_time_nonce_or_runid_breaks_the_signature():
     for f in ("issued_at", "nonce", "run_id"):
         forged = copy.deepcopy(cert)
         setattr(forged, f, "tampered")
-        assert verify_certificate(forged, log)["ok"] is False
+        assert verify_certificate(forged, log, require_authority=False)["ok"] is False
 
 
 def test_hosted_provider_identity_is_bound_and_drift_is_detectable():
@@ -56,7 +56,7 @@ def test_hosted_provider_identity_is_bound_and_drift_is_detectable():
                         provider={"provider": "openai", "model_version": "gpt-x-2026-01",
                                   "system_fingerprint": "fp_abc", "response_id": "resp_1"})
     cert, _ = issue_certificate("prog", [], log, priv=priv)
-    assert verify_certificate(cert, log)["ok"] is True
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True
 
     # A different provider fingerprint yields a different event root, so the original
     # receipt no longer matches -- drift is detected, and the bound provider fields
@@ -65,7 +65,7 @@ def test_hosted_provider_identity_is_bound_and_drift_is_detectable():
     drifted.append_llm_call("ph", [1, 2], seed=0, model_digest="",
                             provider={"provider": "openai", "model_version": "gpt-x-2026-02",
                                       "system_fingerprint": "fp_XYZ", "response_id": "resp_2"})
-    assert verify_certificate(cert, drifted)["ok"] is False
+    assert verify_certificate(cert, drifted, require_authority=False)["ok"] is False
 
 
 def test_v1_receipt_still_verifies_under_the_v2_verifier():
@@ -85,10 +85,10 @@ def test_v1_receipt_still_verifies_under_the_v2_verifier():
     cert = ExecutionCertificate("prog", ["read_docs"], cas.root, len(log), log.head(),
                                 model_digests=log.model_digests())
     cert.v, cert.sig, cert.sig_alg, cert.pubkey = "vitnify-receipt v1", sig, "ed25519", pub
-    r = verify_certificate(cert, log)
+    r = verify_certificate(cert, log, require_authority=False)
     assert r["format"] and r["sig_valid"] and r["ok"]          # v1 fully verifies
     bad = copy.deepcopy(cert); bad.program_hash = "evil"        # ...but tampering is caught
-    assert verify_certificate(bad, log)["ok"] is False
+    assert verify_certificate(bad, log, require_authority=False)["ok"] is False
 
 
 def test_f9_session_llm_records_provider():
@@ -126,7 +126,7 @@ def test_f10_v1_receipt_carrying_v2_fields_is_rejected():
     cert = ExecutionCertificate("p", ["read_docs"], cas.root, len(log), log.head(),
                                 model_digests=log.model_digests())
     cert.v, cert.sig, cert.sig_alg, cert.pubkey = "vitnify-receipt v1", sig, "ed25519", pub
-    assert verify_certificate(cert, log)["ok"] is True            # genuine v1 still verifies
+    assert verify_certificate(cert, log, require_authority=False)["ok"] is True            # genuine v1 still verifies
     cert.issued_at = "2019-01-01T00:00:00Z"                       # forge a backdated timestamp
-    r = verify_certificate(cert, log)
+    r = verify_certificate(cert, log, require_authority=False)
     assert r["fields_match_version"] is False and r["ok"] is False

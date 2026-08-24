@@ -32,7 +32,7 @@ def ctx(ed_keys):
     priv, pub = ed_keys
     log = build_log([])
     cert, _ = issue_certificate("vitnify-agent-v1", CAPS, log, priv=priv)
-    assert verify_certificate(cert, log)["ok"], "baseline run must verify"
+    assert verify_certificate(cert, log, require_authority=False)["ok"], "baseline run must verify"
     return SimpleNamespace(log=log, cert=cert, priv=priv, pub=pub)
 
 
@@ -40,14 +40,14 @@ def _log_tamper_detected(ctx, mut):
     """Tamper the LOG, verify the ORIGINAL receipt against it -> must fail."""
     t = clone(ctx.log)
     mut(t)
-    return verify_certificate(ctx.cert, t)["ok"] is False
+    return verify_certificate(ctx.cert, t, require_authority=False)["ok"] is False
 
 
 def _cert_tamper_detected(ctx, mut):
     """Tamper the RECEIPT, verify against the ORIGINAL log -> must fail."""
     c = copy.deepcopy(ctx.cert)
     mut(c)
-    return verify_certificate(c, ctx.log)["ok"] is False
+    return verify_certificate(c, ctx.log, require_authority=False)["ok"] is False
 
 
 # ============================ CONTAINMENT ============================
@@ -96,7 +96,7 @@ def a_ungranted_none_side_effect_as_deny(ctx):
     log = clone(ctx.log)
     log.append(Kind.TOOL_CALL, {"tool": "send_external", "decision": "deny", "result": None})
     cert, _ = issue_certificate("vitnify-agent-v1", CAPS, log, priv=ctx.priv)
-    return verify_certificate(cert, log)["ok"] is False
+    return verify_certificate(cert, log, require_authority=False)["ok"] is False
 
 
 # ============================ DETECT (log tamper) ===================
@@ -161,7 +161,7 @@ def a_replace_key_no_pin(ctx):
     priv2, _ = gen_ed25519()
     c2 = copy.deepcopy(ctx.cert)
     c2.sign_ed25519(priv2)
-    self_ok = verify_certificate(c2, ctx.log)["ok"]   # internally consistent -> True
+    self_ok = verify_certificate(c2, ctx.log, require_authority=False)["ok"]   # internally consistent -> True
     return not self_ok                                # honest limitation: NOT caught
 
 

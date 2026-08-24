@@ -68,37 +68,17 @@ class Vault:
         return len(self._store)
 
 
-class RedactingBroker:
-    """Capability broker that commits SALTED hashes of args/results instead of the
-    cleartext. Same wall as :class:`~vitnify.capability.Broker` -- an ungranted tool
-    is unreachable and every call is recorded -- but no payload enters the receipt."""
+from .capability import Broker  # noqa: E402  (redact defines _commit/Vault that Broker uses lazily)
+
+
+class RedactingBroker(Broker):
+    """Explicit redacting broker, kept for compatibility. As of 0.4.0 the plain
+    :class:`~vitnify.capability.Broker` already redacts by default, so
+    ``RedactingBroker(caps, tools, log, vault)`` is just
+    ``Broker(caps, tools, log, vault=vault)`` -- a required vault, redaction on."""
 
     def __init__(self, capabilities, tools: dict, log: EventLog, vault: Vault, replay=None):
-        self.caps = set(capabilities)
-        self.tools = tools
-        self.log = log
-        self.vault = vault
-        self.replay = replay  # if set: recorded ALLOW results to re-inject (from the vault)
-
-    def call(self, tool: str, *args):
-        args = list(args)
-        idx = len(self.log)
-        asalt = os.urandom(_SALT_BYTES)
-        if tool not in self.caps:
-            # DENY: commit the args (salted); record NO cleartext and NO result key, so
-            # this is a clean denial to the verifier. The blocked call's argument -- an
-            # MRN, an address, a wire amount -- never enters the receipt.
-            self.log.append(Kind.TOOL_CALL,
-                            {"tool": tool, "args_commit": _commit(asalt, args), "decision": "DENY"})
-            self.vault.put(idx, args_salt=asalt, args=args)
-            return False, None
-        result = self.replay.pop(0) if self.replay is not None else self.tools[tool](*args)
-        rsalt = os.urandom(_SALT_BYTES)
-        self.log.append(Kind.TOOL_CALL,
-                        {"tool": tool, "args_commit": _commit(asalt, args),
-                         "decision": "ALLOW", "result_commit": _commit(rsalt, result)})
-        self.vault.put(idx, args_salt=asalt, args=args, result_salt=rsalt, result=result)
-        return True, result
+        super().__init__(capabilities, tools, log, vault=vault, allow_cleartext=False, replay=replay)
 
 
 def recorded_tool_results(log: EventLog, vault: Vault) -> list:

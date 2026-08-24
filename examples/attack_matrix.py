@@ -55,16 +55,16 @@ priv, pub = gen_ed25519()
 EXFIL.clear()
 log = build_run()
 cert, _ = issue_certificate("vitnify-agent-v1", CAPS, log, priv=priv)
-assert verify_certificate(cert, log)["ok"], "baseline run must verify"
+assert verify_certificate(cert, log, require_authority=False)["ok"], "baseline run must verify"
 
 # helper: tamper the LOG, verify ORIGINAL cert against it -> should fail
 def log_tamper_detected(mut):
     t = clone(log); mut(t)
-    return verify_certificate(cert, t)["ok"] is False
+    return verify_certificate(cert, t, require_authority=False)["ok"] is False
 # helper: tamper the CERT, verify against ORIGINAL log -> should fail
 def cert_tamper_detected(mut):
     c = copy.deepcopy(cert); mut(c)
-    return verify_certificate(c, log)["ok"] is False
+    return verify_certificate(c, log, require_authority=False)["ok"] is False
 
 # ============================ CONTAINMENT ============================
 add("Invoke ungranted tool (read_secret)", "contain",
@@ -116,7 +116,7 @@ add("Corrupt the signature", "detect",
 priv2, pub2 = gen_ed25519()
 cert2 = copy.deepcopy(cert)
 cert2.sign_ed25519(priv2)
-self_ok = verify_certificate(cert2, log)["ok"]                 # True: internally consistent
+self_ok = verify_certificate(cert2, log, require_authority=False)["ok"]                 # True: internally consistent
 pinned_reject = (cert2.pubkey != pub)                          # a pinned trust anchor rejects it
 add("Replace the signing key (no pinned anchor)", "limit",
     (not self_ok))                                             # honest: NOT caught without pinning
