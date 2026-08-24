@@ -30,13 +30,13 @@ log.append_llm_call(prompt_hash(prompt), step["tokens"], seed=0,
                     model_digest=step["model_digest"], regime=step.get("regime"),
                     weights_hash=step.get("weights_hash"))
 log.append(Kind.TOOL_CALL, {"tool": "read_docs",  "decision": "allow", "result": "ticket #4f9c"})
-log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny",  "result": None})  # ungranted → blocked
+log.append(Kind.TOOL_CALL, {"tool": "send_email", "decision": "deny"})  # ungranted → blocked (clean denial carries no result)
 
 # --- issue the ed25519 receipt ---
 priv, pub = gen_ed25519()
 cert, _ = issue_certificate("program_hash_demo", ["read_docs"], log, priv=priv)
 print("receipt digest : %s  (%s)" % (cert.digest()[:16] + "…", cert.sig_alg))
-print("bound model_digest matches paper 9c075445:", cert.model_digests[0].startswith("9c075445"))
+print("bound model_digest matches spec 7a2e28c9:", cert.model_digests[0].startswith("7a2e28c9"))
 
 # --- level 1: offline integrity ---
 v1 = verify_certificate(cert, log)
@@ -47,4 +47,4 @@ step2 = eng.run(prompt, n_new=20)
 l2 = step2["model_digest"] == cert.model_digests[0]
 print("level-2 recompute: %s (model reproduced bit-for-bit)" % ("OK" if l2 else "FAIL"))
 
-print("\nRESULT:", "vitnify-receipt v1 END-TO-END OK" if (v1["ok"] and l2) else "PROBLEM")
+print("\nRESULT:", "vitnify-receipt END-TO-END OK" if (v1["ok"] and l2) else "PROBLEM")

@@ -228,8 +228,14 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     granted = set(cert.capabilities)
 
     def _clean_denial(p: dict) -> bool:
+        # A denial is clean when it carries no result. An explicit ``None`` counts
+        # the same as an omitted key: a null result reads as "no result" to every
+        # integration, and requiring strict omission was a silent footgun (an
+        # adapter that set ``result=None`` on a block failed caps_consistent). This
+        # never lets an ungranted call that actually ran pass -- a real execution
+        # always carries a non-None result and result_hash.
         return (str(p.get("decision", "")).strip().lower() == "deny"
-                and "result" not in p and "result_hash" not in p)
+                and p.get("result") is None and p.get("result_hash") is None)
 
     checks["caps_consistent"] = all(
         e.payload.get("tool") in granted or _clean_denial(e.payload)
