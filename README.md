@@ -56,10 +56,32 @@ See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/bl
 ## What you get
 
 - **Capability containment** — ungranted tools are structurally unreachable.
-- **Deterministic replay** — re-run any past run and get the identical result.
+- **Deterministic replay** — re-run a contested run and get the identical result, bit-for-bit.
 - **Bit-for-bit receipts** — the model's exact computation, bound and signed.
+- **Redaction by default** — commit salted hashes of tool payloads, not cleartext, so PHI/secrets never enter the receipt; disclose one event at a time with an inclusion proof (`vitnify.redact`).
 - **Offline verification** — anyone verifies with no model, network, or secret.
 - **Drop-in** — wraps existing **LangGraph** and **MCP** agents (`pip install vitnify[langgraph]` / `[mcp]`).
+
+**Two verification levels — and when to use each.** *Level 1 (integrity)* is offline,
+instant, and needs no model — recompute the Merkle root and check the signature; this is
+the default for every receipt, and it's what proves containment and tamper-evidence.
+*Level 2 (recompute)* additionally re-runs the model to reproduce the committed logits.
+It is the **dispute path** — run on a contested subset when someone challenges a specific
+decision, **not** on every receipt inline. It is deliberately slow: the pinned-order
+deterministic engine trades throughput for bit-exactness, roughly two orders of magnitude
+below native inference (~0.45 tok/s vs ~58 for Mistral-7B Q4_K_M on the same Metal box).
+Fleet throughput still scales the normal way — L2 is embarrassingly parallel across
+receipts; a single recompute is simply not something you do on the hot path.
+
+**Signer authority.** `verify_certificate` proves integrity and signer *continuity* from a
+receipt's own key. For *authority* (that an approved runtime signed it), use
+`verify_authorized(cert, log, pinned_pubkeys=...)`, which fails closed unless the signer is
+on your allow-list — a re-signed forgery then never verifies. Anchor the pinned key in a
+TPM/enclave for the strongest form.
+
+**Program binding.** `program_hash` is caller-asserted by default. Pass
+`derive_program_hash(paths_or_bytes)` at issue time and `verify_certificate(..., program=…)`
+at verify time to make the receipt bind the *actual* program, not a label.
 
 The deterministic engine is [`vitni-tensor`](https://github.com/vitnify/vitni-tensor);
 the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it).

@@ -77,6 +77,33 @@ def gen_ed25519():
     return priv, priv.public_key().public_bytes_raw().hex()
 
 
+def derive_program_hash(program) -> str:
+    """Derive a ``program_hash`` from the ACTUAL program, so the receipt binds what ran
+    instead of a caller-asserted label.
+
+    ``program`` is a file path, an iterable of paths (hashed in basename order, each
+    bound with its basename so a rename is detected), or raw ``bytes``. Returns
+    ``"sha256:<hex>"``. Pass the same value to :func:`issue_certificate` at issue time
+    and to :func:`verify_certificate` (``program=``) at verify time; a mismatch then
+    means the receipt names a different program -- ``"literally anything I type"`` no
+    longer verifies against real code.
+    """
+    import hashlib
+    hsh = hashlib.sha256()
+    if isinstance(program, (bytes, bytearray)):
+        hsh.update(bytes(program))
+    else:
+        paths = [program] if isinstance(program, (str, os.PathLike)) else list(program)
+        for p in sorted(paths, key=lambda x: os.path.basename(str(x))):
+            with open(p, "rb") as f:
+                data = f.read()
+            hsh.update(os.path.basename(str(p)).encode())
+            hsh.update(b"\x00")
+            hsh.update(data)
+            hsh.update(b"\x00")
+    return "sha256:" + hsh.hexdigest()
+
+
 @dataclass
 class ExecutionCertificate:
     program_hash: str
@@ -165,7 +192,7 @@ def issue_certificate(program_hash, capabilities, log: EventLog, priv=None, key:
 
 
 def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | None = None,
-                       pinned_pubkeys=None) -> dict:
+                       pinned_pubkeys=None, program=None) -> dict:
     """Level-1 verification: recompute everything from the raw events; trust nothing.
 
     Fails CLOSED. A receipt is only `ok` if a signature was actually checked and
@@ -263,6 +290,14 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
         checks["signer_pinned"] = (
             sig_valid and cert.sig_alg == "ed25519" and cert.pubkey in set(pinned_pubkeys))
 
+    # Program binding. `program_hash` is caller-asserted by default -- issue_certificate
+    # binds whatever string you pass, so "literally anything I type" verifies. Supplying
+    # `program` (the ACTUAL code: a path, iterable of paths, or bytes) recomputes
+    # derive_program_hash and CONFIRMS the receipt names that program, turning a
+    # self-asserted label into a checked binding. A mismatch fails the receipt.
+    if program is not None:
+        checks["program_matches"] = (cert.program_hash == derive_program_hash(program))
+
     # Enforcement vs observation. An "allow"/"deny" decision came from the capability
     # wall -- the call was GATED. Any other value (e.g. "observed" from the record-only
     # callback adapter) means it was WATCHED, not enforced, so the receipt is a
@@ -277,3 +312,23 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
 
     checks["ok"] = all(v for k, v in checks.items() if k != "containment_enforced")
     return checks
+
+
+def verify_authorized(cert: ExecutionCertificate, log: EventLog, pinned_pubkeys, **kw) -> dict:
+    """Production verification that requires an AUTHORISED signer.
+
+    `verify_certificate` proves integrity and signer *continuity* from a receipt's own
+    embedded key -- but a forger can re-sign an edited receipt with their OWN key and it
+    still self-verifies (the honest limitation, kept as an xfail in the attack matrix).
+    Authority requires anchoring the signer to keys you trust. This wrapper FAILS CLOSED
+    unless `pinned_pubkeys` is a non-empty allow-list AND the signer is on it, so a
+    re-signed forgery can never report `ok=True`, and neither can a call that simply
+    forgot to pin. Use this -- not the bare verifier -- anywhere signer authority matters.
+
+    The allow-list is the software anchor; the strongest form pins a TPM/enclave-resident
+    key so the private key cannot leave an approved runtime (future hardening).
+    """
+    if not pinned_pubkeys:
+        return {"ok": False, "signer_pinned": False, "containment_enforced": False,
+                "error": "no pinned signer allow-list: signer authority cannot be established"}
+    return verify_certificate(cert, log, pinned_pubkeys=pinned_pubkeys, **kw)

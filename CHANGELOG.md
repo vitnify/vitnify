@@ -3,6 +3,36 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.3.0] — 2026-08-24
+
+Close the three open review findings: PHI in the receipt (A), signer authority (B),
+and an unbound `program_hash` (C).
+
+### Added
+- **Redaction by default — `vitnify.redact`.** `RedactingBroker` commits a **salted**
+  hash of each tool payload instead of the cleartext, on **allow AND deny**, keeping
+  the cleartext in an org-held `Vault` inside the boundary. So a blocked exfiltration
+  no longer writes an MRN into the permanent record, and no PHI enters the signed
+  receipt. `disclose()` / `verify_disclosure()` reveal ONE event at a time with an
+  inclusion proof against the receipt's `event_root`; a doctored disclosure fails the
+  commitment, other events stay hidden. Salting is mandatory — an unsalted hash of a
+  10-digit MRN is brute-forceable. See `examples/redact_demo.py`, `tests/test_redact.py`.
+- **Signer authority — `verify_authorized(cert, log, pinned_pubkeys=…)`.** Fails
+  closed unless the signer is on your allow-list, so a re-signed forgery (valid under
+  an attacker's own key) never reports `ok` — and neither does a call that forgot to
+  pin. `verify_certificate` still proves integrity + continuity from the embedded key;
+  authority requires the pin (anchor it in a TPM/enclave for the strongest form).
+- **Program binding — `derive_program_hash(paths_or_bytes)` + `verify_certificate(…,
+  program=…)`.** Derive `program_hash` from the actual code so the receipt binds what
+  ran; the verifier confirms it. `"literally anything I type here"` no longer verifies
+  against real code. See `tests/test_authority_program.py`.
+
+### Changed
+- **README** reframes replay as the **dispute path**: level 1 (integrity) is the
+  default; level 2 (recompute) is run on a contested subset, not inline, and is ~2
+  orders of magnitude below native inference (~0.45 vs ~58 tok/s, Mistral-7B on Metal)
+  — while fleet throughput still scales normally (L2 is parallel across receipts).
+
 ## [0.2.14] — 2026-08-24
 
 **Security hotfix.** Revert the 0.2.13 verifier loosening, which was a containment
