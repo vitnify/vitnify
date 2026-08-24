@@ -66,3 +66,30 @@ def test_authorized_fails_closed_without_a_pin():
     cert, _ = issue_certificate("p", ["read"], log, priv=priv)
     assert verify_authorized(cert, log, [])["ok"] is False
     assert verify_authorized(cert, log, None)["ok"] is False
+
+
+# ---------------- C: injective derivation (no delimiter collision, total order) ------
+def test_derive_no_delimiter_collision(tmp_path):
+    # Under a raw \x00 delimiter, two files collide with one crafted file whose content
+    # embeds the delimiter. Length-prefixing must prevent it.
+    (tmp_path / "a.py").write_bytes(b"AA")
+    (tmp_path / "b.py").write_bytes(b"BB")
+    sub = tmp_path / "sub"; sub.mkdir()
+    (sub / "a.py").write_bytes(b"AA\x00b.py\x00BB")   # the old-scheme concatenation, as one file
+    two = derive_program_hash([tmp_path / "a.py", tmp_path / "b.py"], root=tmp_path)
+    one = derive_program_hash([sub / "a.py"], root=sub)
+    assert two != one
+
+
+def test_derive_is_argument_order_independent(tmp_path):
+    (tmp_path / "p1").mkdir(); (tmp_path / "p2").mkdir()
+    f1 = tmp_path / "p1" / "__init__.py"; f1.write_bytes(b"one")
+    f2 = tmp_path / "p2" / "__init__.py"; f2.write_bytes(b"two")   # same basename, real case
+    assert derive_program_hash([f1, f2], root=tmp_path) == derive_program_hash([f2, f1], root=tmp_path)
+
+
+def test_derive_binds_relative_path_not_basename(tmp_path):
+    (tmp_path / "x").mkdir(); (tmp_path / "y").mkdir()
+    fx = tmp_path / "x" / "m.py"; fx.write_bytes(b"code")
+    fy = tmp_path / "y" / "m.py"; fy.write_bytes(b"code")   # same name+content, moved dir
+    assert derive_program_hash([fx], root=tmp_path) != derive_program_hash([fy], root=tmp_path)

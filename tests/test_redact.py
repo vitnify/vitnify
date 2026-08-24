@@ -75,3 +75,20 @@ def test_salting_makes_commit_unguessable():
 def test_replay_reads_results_from_vault():
     log, vault = _run()
     assert recorded_tool_results(log, vault) == [{"mrn": SECRET, "ok": True}]
+
+
+def test_vacuous_disclosure_rejected():
+    # An event with NO commitments, handed to an auditor with a fabricated reveal, must
+    # NOT verify vacuously (an auditor handed {"args": ["MADE UP"]} must see ok=False).
+    from vitnify.events import EventLog, Kind
+    from vitnify._vendor.pck.cas import MerkleCAS
+    log = EventLog()
+    log.append(Kind.AGENT_STEP, {"state": "start"})   # commits nothing
+    cas = MerkleCAS(log.chunks())
+    disc = {"index": 0, "event": log.events[0].canonical(),
+            "proof": cas.prove_index(0).to_json(),
+            "reveal": {"args": ["TOTALLY MADE UP"]}}
+    r = verify_disclosure(disc, cas.root)
+    assert r["in_root"] is True       # the event really is in the signed root...
+    assert r["bound"] is False        # ...but nothing was committed to bind a reveal to
+    assert r["ok"] is False

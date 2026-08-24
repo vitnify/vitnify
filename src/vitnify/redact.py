@@ -139,14 +139,24 @@ def verify_disclosure(disc: dict, root: str) -> dict:
     proof = InclusionProof.from_json(disc["proof"])
     # 1. the disclosure is for THIS event, and this event is in the signed root.
     checks["in_root"] = bool(proof.leaf == leaf and verify_proof(leaf, proof.path, root))
-    # 2. the revealed cleartext re-derives the commitments the event actually recorded.
+    # 2. the revealed cleartext re-derives the commitments the event actually recorded --
+    #    and a reveal must not CLAIM a field the event never committed.
     payload = json.loads(ev_canon)["payload"]
     reveal = disc.get("reveal", {})
-    checks["args_bind"] = ("args_commit" not in payload) or (
-        "args" in reveal and "args_salt" in reveal
-        and _commit(bytes.fromhex(reveal["args_salt"]), reveal["args"]) == payload["args_commit"])
-    checks["result_bind"] = ("result_commit" not in payload) or (
-        "result" in reveal and "result_salt" in reveal
-        and _commit(bytes.fromhex(reveal["result_salt"]), reveal["result"]) == payload["result_commit"])
+    has_ac, has_rc = "args_commit" in payload, "result_commit" in payload
+    if has_ac:
+        checks["args_bind"] = ("args" in reveal and "args_salt" in reveal
+            and _commit(bytes.fromhex(reveal["args_salt"]), reveal["args"]) == payload["args_commit"])
+    else:
+        checks["args_bind"] = "args" not in reveal      # claiming args with no commitment -> fail
+    if has_rc:
+        checks["result_bind"] = ("result" in reveal and "result_salt" in reveal
+            and _commit(bytes.fromhex(reveal["result_salt"]), reveal["result"]) == payload["result_commit"])
+    else:
+        checks["result_bind"] = "result" not in reveal
+    # 3. the disclosure must actually BIND something. An event with NO commitments plus a
+    #    fabricated reveal must not verify vacuously -- the same vacuity class closed in
+    #    the viewer at 0.2.8. `bound` fails closed on nothing-to-bind.
+    checks["bound"] = has_ac or has_rc
     checks["ok"] = all(bool(v) for v in checks.values())
     return checks

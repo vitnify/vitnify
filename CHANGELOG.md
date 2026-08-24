@@ -3,6 +3,31 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.3.1] — 2026-08-24
+
+Fixes from a second review pass on 0.3.0.
+
+### Security
+- **`derive_program_hash` is now injective.** 0.3.0 concatenated `basename \0 data \0`,
+  but content can contain `\0` — so two files collided with one crafted file, and the
+  collision passed the new `program=` check end-to-end. Now each entry binds its
+  **length-prefixed relative path** then **length-prefixed content** (the tier-1 digest
+  discipline; a length prefix cannot be forged by embedding a delimiter). Entries sort by
+  **relative path** — a total order, unlike basename, so a program with several
+  `__init__.py` is argument-order-independent — and the relative path is bound, so moving
+  a file between directories changes the hash. Add `root=` to control the base.
+- **`verify_disclosure` no longer passes vacuously.** An event with no commitments plus a
+  fabricated reveal returned `ok=True`; it now fails closed (`bound=False`, and a reveal
+  that claims a field the event never committed fails) — the vacuity class closed in the
+  viewer at 0.2.8.
+
+### Docs
+- **Corrected a dangerous claim.** The 0.3.0 README said "redaction by default"; it is
+  **opt-in**. The README now says so plainly, adds a callout that the bare `Broker` /
+  `verify_certificate` / caller-asserted `program_hash` are integrity-only and not safe
+  for regulated data, and shows the opt-in production path (`RedactingBroker` +
+  `verify_authorized` + `derive_program_hash`). (Safe-by-default is planned for 0.4.0.)
+
 ## [0.3.0] — 2026-08-24
 
 Close the three open review findings: PHI in the receipt (A), signer authority (B),

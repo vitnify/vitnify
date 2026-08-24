@@ -77,30 +77,47 @@ def gen_ed25519():
     return priv, priv.public_key().public_bytes_raw().hex()
 
 
-def derive_program_hash(program) -> str:
+def derive_program_hash(program, root=None) -> str:
     """Derive a ``program_hash`` from the ACTUAL program, so the receipt binds what ran
-    instead of a caller-asserted label.
+    instead of a caller-asserted label -- ``"literally anything I type"`` no longer
+    verifies against real code.
 
-    ``program`` is a file path, an iterable of paths (hashed in basename order, each
-    bound with its basename so a rename is detected), or raw ``bytes``. Returns
+    ``program`` is a file path, an iterable of paths, or raw ``bytes``. Returns
     ``"sha256:<hex>"``. Pass the same value to :func:`issue_certificate` at issue time
-    and to :func:`verify_certificate` (``program=``) at verify time; a mismatch then
-    means the receipt names a different program -- ``"literally anything I type"`` no
-    longer verifies against real code.
+    and to :func:`verify_certificate` (``program=``) at verify time.
+
+    INJECTIVE by construction, matching the tier-1 digest discipline ("fields are
+    length-prefixed so concatenation is injective"): each entry binds its
+    **length-prefixed relative path** then its **length-prefixed content**. A raw
+    ``\\x00`` delimiter is unsafe because file content can contain ``\\x00`` (two files
+    then collide with one crafted file); a length prefix cannot. Entries are sorted by
+    **relative path** -- a TOTAL order, unlike basename, so a program with several
+    ``__init__.py`` is argument-order-independent -- and the relative path is bound, so
+    moving a file between directories changes the hash. Pass ``root`` to control what the
+    paths are relative to; otherwise paths are bound as given (pass relative paths for a
+    machine-independent hash).
     """
     import hashlib
+    import struct
+
+    def _lp(b: bytes) -> bytes:  # length-prefixed: injective concatenation
+        return struct.pack(">Q", len(b)) + b
+
     hsh = hashlib.sha256()
     if isinstance(program, (bytes, bytearray)):
-        hsh.update(bytes(program))
+        hsh.update(_lp(b""))            # anonymous single blob: empty relative path
+        hsh.update(_lp(bytes(program)))
     else:
         paths = [program] if isinstance(program, (str, os.PathLike)) else list(program)
-        for p in sorted(paths, key=lambda x: os.path.basename(str(x))):
+        entries = []
+        for p in paths:
+            rel = os.path.relpath(str(p), root) if root is not None else str(p)
+            rel = rel.replace(os.sep, "/")   # stable across platforms
             with open(p, "rb") as f:
-                data = f.read()
-            hsh.update(os.path.basename(str(p)).encode())
-            hsh.update(b"\x00")
-            hsh.update(data)
-            hsh.update(b"\x00")
+                entries.append((rel, f.read()))
+        for rel, data in sorted(entries, key=lambda e: e[0]):   # total order by rel path
+            hsh.update(_lp(rel.encode("utf-8")))
+            hsh.update(_lp(data))
     return "sha256:" + hsh.hexdigest()
 
 

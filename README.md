@@ -58,7 +58,7 @@ See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/bl
 - **Capability containment** — ungranted tools are structurally unreachable.
 - **Deterministic replay** — re-run a contested run and get the identical result, bit-for-bit.
 - **Bit-for-bit receipts** — the model's exact computation, bound and signed.
-- **Redaction by default** — commit salted hashes of tool payloads, not cleartext, so PHI/secrets never enter the receipt; disclose one event at a time with an inclusion proof (`vitnify.redact`).
+- **Redaction (opt-in)** — `RedactingBroker` commits *salted* hashes of tool payloads instead of cleartext, on allow **and** deny, so PHI/secrets never enter the receipt; disclose one event at a time with an inclusion proof (`vitnify.redact`). The default `Broker` records payloads in **cleartext** — use `RedactingBroker` for regulated data (see the callout below).
 - **Offline verification** — anyone verifies with no model, network, or secret.
 - **Drop-in** — wraps existing **LangGraph** and **MCP** agents (`pip install vitnify[langgraph]` / `[mcp]`).
 
@@ -82,6 +82,28 @@ TPM/enclave for the strongest form.
 **Program binding.** `program_hash` is caller-asserted by default. Pass
 `derive_program_hash(paths_or_bytes)` at issue time and `verify_certificate(..., program=…)`
 at verify time to make the receipt bind the *actual* program, not a label.
+
+> ### ⚠️ Defaults are opt-in — read this for regulated data
+>
+> The three protections above are **opt-in in 0.3.x**, and the bare defaults are *not*
+> safe for regulated data. Be explicit about it: the default `Broker` records tool
+> payloads in **cleartext**; `verify_certificate` proves integrity and signer
+> *continuity* but **not authority**; and a caller-asserted `program_hash` binds nothing
+> on its own. For PHI/secrets, an authorised-signer requirement, or real program binding,
+> you **must** opt in:
+>
+> ```python
+> from vitnify.redact import RedactingBroker, Vault
+> from vitnify.certificate import issue_certificate, verify_authorized, derive_program_hash
+>
+> vault  = Vault()
+> broker = RedactingBroker(caps, tools, log, vault)                 # no cleartext in the receipt
+> cert, _ = issue_certificate(derive_program_hash(SRC), caps, log, priv=priv)  # bind the real code
+> checks = verify_authorized(cert, log, pinned_pubkeys=[trusted_key], program=SRC)  # authority + binding
+> ```
+>
+> Safe-by-default is planned; until then treat the bare `Broker` / `verify_certificate`
+> as **integrity-only**, not a containment or authority control for sensitive data.
 
 The deterministic engine is [`vitni-tensor`](https://github.com/vitnify/vitni-tensor);
 the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it).
