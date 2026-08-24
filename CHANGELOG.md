@@ -3,6 +3,29 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.13] — 2026-08-24
+
+Fix the flagship end-to-end demo, which printed `RESULT: PROBLEM` on a clean install,
+and remove a verifier footgun that surfaced through it.
+
+### Fixed
+- **`examples/demo_receipt_e2e.py`** printed two failures on a clean run:
+  - the `deny` event carried `{"result": None}`; `_clean_denial` required the key
+    **absent**, so `caps_consistent` went `False`. The demo now omits `result` on a
+    denial (a clean denial carries none).
+  - it checked the bound tier-1 **v2** (regime-bound) `model_digest` against the old
+    **v1** anchor `9c075445…`, printing `False` after the regime-2 upgrade. It now
+    checks the regime-2 anchor `7a2e28c9…`. Also dropped a stale `v1` from the final
+    line (the receipt issued is v2 format).
+
+### Verification
+- **`_clean_denial` now treats an explicit `result`/`result_hash` of `None` the same
+  as an omitted key.** A null result reads as "no result" to every integration, and
+  requiring strict omission silently failed adapters that set `result=None` on a
+  block. This does **not** weaken containment: a real execution always carries a
+  non-None result, so an ungranted call that actually ran still cannot pass as a
+  clean denial. (118 pass / 3 skip / 1 xfail, unchanged.)
+
 ## [0.2.12] — 2026-08-20
 
 Ship the level-2 verifier the spec specifies — so the diagnostics live in code, not only
