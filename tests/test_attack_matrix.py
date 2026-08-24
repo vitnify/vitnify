@@ -6,7 +6,7 @@ attack is DEFENDED, one of three ways:
   * detect  -- tampering the run breaks the receipt's L1 verification;
   * limit   -- an honest limitation of the trust model.
 
-17 attacks are defended. The one honest limitation -- re-signing an unchanged receipt
+18 attacks are defended. The one honest limitation -- re-signing an unchanged receipt
 with a different key when no trust anchor is pinned -- is a documented, strict xfail:
 an embedded ed25519 key proves integrity and signer continuity, not that the signer was
 an authorised runtime. Pinning the key (or a TPM/enclave anchor) closes it, which is the
@@ -83,6 +83,20 @@ def a_replay_duplicate(ctx):
     replay_exfil = []
     build_log(replay_exfil, broker_replay=recorded_tool_results(rec))  # replay re-injects
     return replay_exfil == []
+
+
+def a_ungranted_none_side_effect_as_deny(ctx):
+    # An UNGRANTED, side-effecting tool that returns None (send_email / wire_transfer /
+    # delete_record) actually RAN, then got logged as a clean block:
+    #   {"tool": <ungranted>, "decision": "deny", "result": None}
+    # An absent `result` key and an explicit None are indistinguishable by value, so
+    # the verifier must fail CLOSED on a present key -- even None -- or a real side
+    # effect masquerades as a denial. Regression guard: 0.2.13 accepted None here and
+    # returned ok=True (containment bypass); reverted to strict absence in 0.2.14.
+    log = clone(ctx.log)
+    log.append(Kind.TOOL_CALL, {"tool": "send_external", "decision": "deny", "result": None})
+    cert, _ = issue_certificate("vitnify-agent-v1", CAPS, log, priv=ctx.priv)
+    return verify_certificate(cert, log)["ok"] is False
 
 
 # ============================ DETECT (log tamper) ===================
@@ -164,6 +178,7 @@ DEFENDED = [
     ("alias_forbidden_tool", a_alias),
     ("injected_instruction_in_tool_output", a_injection),
     ("duplicate_side_effect_on_replay", a_replay_duplicate),
+    ("ungranted_none_returning_side_effect_logged_as_deny", a_ungranted_none_side_effect_as_deny),
     ("delete_an_event", a_delete_event),
     ("reorder_two_events", a_reorder),
     ("modify_a_tool_argument", a_mod_arg),
@@ -203,6 +218,6 @@ def test_attack_is_defended(ctx, attack):
 
 
 def test_matrix_totals_match_the_evaluation():
-    # 18 attacks total: 17 defended, 1 documented honest limitation.
-    assert len(DEFENDED) == 17
+    # 19 attacks total: 18 defended, 1 documented honest limitation.
+    assert len(DEFENDED) == 18
     assert len(KNOWN_NOT_DEFENDED) == 1

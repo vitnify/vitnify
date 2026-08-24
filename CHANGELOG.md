@@ -3,6 +3,28 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.2.14] — 2026-08-24
+
+**Security hotfix.** Revert the 0.2.13 verifier loosening, which was a containment
+regression. Keep the 0.2.13 demo fix.
+
+### Security
+- **`_clean_denial` back to strict absence.** 0.2.13 accepted `result: None` (and
+  `result_hash: None`) as a clean denial. An absent key and an explicit `None` are
+  indistinguishable by value, so this let the single most dangerous shape through: an
+  **ungranted, side-effecting tool that returns `None`** (`send_email`, `wire_transfer`,
+  `delete_record`) which **actually executed** and was logged
+  `{"decision":"deny","result":None}` verified as `ok=True, caps_consistent=True` —
+  a real side effect masquerading as a block. The 0.2.13 rationale ("a real execution
+  always carries a non-None result") holds through the Broker but is false for any
+  hand-rolled wrapper around a `None`-returning tool, and catching exactly that is in
+  scope per `SECURITY.md`. Every enforced deny site already omits the key, so the
+  loosening bought nothing. A genuine block never writes a `result`; if the ergonomics
+  are wanted later, the sound form is a positive Broker assertion (`executed: false`),
+  never an indistinguishable absence.
+- **New attack-matrix guard** `ungranted_none_returning_side_effect_logged_as_deny`
+  (18 defended, 1 honest xfail) fails the build if this hole is ever reopened.
+
 ## [0.2.13] — 2026-08-24
 
 Fix the flagship end-to-end demo, which printed `RESULT: PROBLEM` on a clean install,

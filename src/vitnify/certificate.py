@@ -228,14 +228,20 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     granted = set(cert.capabilities)
 
     def _clean_denial(p: dict) -> bool:
-        # A denial is clean when it carries no result. An explicit ``None`` counts
-        # the same as an omitted key: a null result reads as "no result" to every
-        # integration, and requiring strict omission was a silent footgun (an
-        # adapter that set ``result=None`` on a block failed caps_consistent). This
-        # never lets an ungranted call that actually ran pass -- a real execution
-        # always carries a non-None result and result_hash.
+        # A denial is clean ONLY if it carries no result key AT ALL. This is a
+        # security boundary, not ergonomics: the most dangerous tool shape is a
+        # side-effecting call that returns None (send_email, wire_transfer,
+        # delete_record). An UNGRANTED one that actually executed and is logged
+        # {"decision":"deny","result":None} must NOT pass -- yet an explicit None
+        # and an absent key are indistinguishable by value, so accepting None (the
+        # 0.2.13 loosening, now reverted) let a real side effect masquerade as a
+        # block through any non-Broker wrapper. Every enforced deny site already
+        # OMITS the key; a genuine block never writes it. If the ergonomics are
+        # wanted later, the sound form is a POSITIVE Broker assertion
+        # (``executed: false``), never an absence you cannot distinguish from a
+        # None return. Guarded by tests/test_attack_matrix.py::...none_result.
         return (str(p.get("decision", "")).strip().lower() == "deny"
-                and p.get("result") is None and p.get("result_hash") is None)
+                and "result" not in p and "result_hash" not in p)
 
     checks["caps_consistent"] = all(
         e.payload.get("tool") in granted or _clean_denial(e.payload)
