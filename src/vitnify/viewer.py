@@ -119,7 +119,7 @@ def render(run: dict) -> str:
     #                   UNESTABLISHED (no trust root) -- shown as such, NOT as "failed".
     integrity_ok = bool(v.get("integrity_ok"))
     authority_ok = v.get("authority_ok")          # True / False / None
-    replay_ok = bool(v.get("replay_identical"))
+    replay = v.get("replay_identical")            # True / False / None — see the three-state badge
     # Containment is trustworthy only on a verified (untampered) log -- that is INTEGRITY,
     # not authority: a stranger with no trust root can still see the run was contained.
     containment_proven = integrity_ok and bool(tool_events) and all_gated
@@ -144,15 +144,24 @@ def render(run: dict) -> str:
     else:
         containment_badge = badge(True, "Containment enforced", "")   # every call gated; none needed blocking
 
-    badges = (integrity_badge + authority_badge + containment_badge
-              + badge(replay_ok, "Replay bit-identical", "Replay diverged"))
+    # Replay is ALSO three-state: not-run (absent) must not read as diverged. L2 recompute
+    # is the DISPUTE path, so the common receipt carries no replay data -- rendering that as
+    # a red "diverged" asserts a failure that never happened (the same shape as authority).
+    if replay is True:
+        replay_badge = badge(True, "Replay bit-identical", "")
+    elif replay is False:
+        replay_badge = badge(False, "", "Replay diverged")
+    else:
+        replay_badge = neutral_badge("Replay not run — L1 verdict only")
+
+    badges = integrity_badge + authority_badge + containment_badge + replay_badge
 
     # Headline asserts ONLY what the evidence supports. Integrity is the base claim (anyone
     # can verify it offline); authority is claimed ONLY when a trust root confirmed it --
     # an unestablished authority is never dressed up as verified.
     claims = (["integrity-verified"] if integrity_ok else []) \
         + (["contained"] if containment_proven else []) \
-        + (["replayed bit-for-bit"] if replay_ok else []) \
+        + (["replayed bit-for-bit"] if replay is True else []) \
         + (["signed by an approved runtime"] if authority_ok is True else [])
     if not claims:
         headline = "Recorded agent run."
@@ -171,8 +180,21 @@ def render(run: dict) -> str:
             ("event-log root", cert["event_root"]),
             ("chain head", cert["head_hash"]),
             ("certificate id", cert.get("digest", "—")),
-            ("signature", cert.get("sig", "—")),
+            (f"signature ({_esc(cert['sig_alg'])})" if cert.get("sig_alg") else "signature",
+             cert.get("sig", "—")),
         ])
+
+    # Footer is DERIVED, never a hardcoded claim. State only what the page proves, and the
+    # ACTUAL signature algorithm from the receipt (not a fixed "HMAC"). No batch-invariance
+    # claim: that determinism property is NOT closed by the engine -- it is precisely why
+    # level 2 is a single-request path, so asserting it here would be false.
+    sig_alg = cert.get("sig_alg")
+    sig_note = f"Signed with {_esc(sig_alg)}. " if sig_alg else ""
+    footer_text = (sig_note +
+        "Verified offline from the receipt alone — no model, no network, no secret. "
+        "Level-2 recomputation (re-run the model to reproduce the committed logits) is the "
+        "dispute path for a contested run, not required for the integrity, containment, and "
+        "authority verdicts above.")
 
     return f"""<title>Agent Replay Certificate</title>
 <style>
@@ -277,7 +299,7 @@ footer{{color:var(--ink-dim);font-size:12px;margin-top:26px;text-align:center;}}
     </div>
   </section>
 
-  <footer>Recorded under production batch load, replayed alone &mdash; bit-identical only because inference is batch-invariant. HMAC signing shown; ed25519/TPM in production.</footer>
+  <footer>{_esc(footer_text)}</footer>
 </div>
 
 <script>

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vitnify"
-version = "0.4.2"
+version = "0.4.3"
 description = "Execution receipts for AI agents: contain, deterministically reconstruct, and cryptographically certify a run."
 readme = "README.md"
 requires-python = ">=3.10"

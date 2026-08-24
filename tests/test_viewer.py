@@ -37,7 +37,7 @@ def _build(decisions, *, cert_ok=True, replay=True, authority=None):
         "events": [asdict(e) for e in log.events],
         "certificate": {"program_hash": cert.program_hash, "capabilities": cert.capabilities,
                         "event_root": cert.event_root, "head_hash": cert.head_hash,
-                        "digest": cert.digest(), "sig": cert.sig},
+                        "digest": cert.digest(), "sig": cert.sig, "sig_alg": cert.sig_alg},
         "verdict": {"replay_identical": replay, "integrity_ok": cert_ok, "authority_ok": authority},
     }
     return run, log
@@ -96,6 +96,28 @@ def test_authority_badge_is_three_state():
     # the headline claims authority ONLY when it was actually verified
     assert "signed by an approved runtime" in _headline(render(_build(["allow"], authority=True)[0]))
     assert "signed by an approved runtime" not in _headline(render(_build(["allow"], authority=None)[0]))
+
+
+def test_replay_badge_is_three_state():
+    """not-run (absent) must read neutral, NOT a red 'diverged' -- the same false-negative
+    the authority split removed, and now the COMMON case since L2 is the dispute path."""
+    run, _ = _build(["allow"], replay=None)         # no replay data (L1-only receipt)
+    b = _badges(render(run))
+    assert ("neutral", "Replay not run — L1 verdict only") in b
+    assert not any(t == "Replay diverged" for _, t in b)
+    assert "replayed bit-for-bit" not in _headline(render(run))
+    # ran & identical -> good; ran & diverged -> bad (distinct from not-run)
+    assert ("good", "Replay bit-identical") in _badges(render(_build(["allow"], replay=True)[0]))
+    assert ("bad", "Replay diverged") in _badges(render(_build(["allow"], replay=False)[0]))
+
+
+def test_footer_makes_no_unbacked_claims():
+    """The footer must not assert batch-invariance (not an engine property) or a fixed
+    HMAC (the demo signs ed25519). It is derived from the run, not hardcoded marketing."""
+    html = render(_build(["allow"])[0])
+    assert "batch-invariant" not in html and "batch invariant" not in html
+    assert "HMAC signing" not in html
+    assert "ed25519" in html                         # the real signature algorithm, shown
 
 
 def test_cert_failed_drops_all_derived_claims():

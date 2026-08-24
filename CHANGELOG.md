@@ -3,6 +3,25 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.3] — 2026-08-24
+
+Two more viewer surfaces the verdict split hadn't reached — both making claims the run
+doesn't back.
+
+### Fixed
+- **Replay badge is now three-state.** It was `bool(v.get("replay_identical"))`, so
+  *not run* (absent) and *ran and diverged* collapsed to the same red "Replay diverged" —
+  the same false-negative the authority split removed, one variable over. Since level 2 is
+  the dispute path, the common receipt carries no replay data, so every such page was
+  asserting a divergence that never happened. Absent now renders neutral **"Replay not run —
+  L1 verdict only"**; the headline claims "replayed bit-for-bit" only when it actually was.
+- **The viewer footer no longer makes unbacked claims.** It hardcoded, under *every*
+  receipt: "…bit-identical only because inference is **batch-invariant**. **HMAC** signing
+  shown…" — both false (batch-invariance is not an engine property; it is precisely why
+  level 2 is a single-request path — and the demo signs ed25519). The footer is now derived
+  from the run: the actual `sig_alg`, and a statement of what the page proves, with no
+  determinism claim the engine can't back.
+
 ## [0.4.2] — 2026-08-24
 
 Carry the split verdict through to the human-facing viewer, and close a fail-open.

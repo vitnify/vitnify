@@ -61,7 +61,7 @@ with open(os.path.join(os.path.dirname(__file__), "..", "last_run.json"), "w") a
                "events": [{"i":e.i,"kind":e.kind,"payload":e.payload,"prev":e.prev} for e in rec_log.events],
                "certificate": {"program_hash":rec_cert.program_hash,"capabilities":rec_cert.capabilities,
                                "event_root":rec_cert.event_root,"head_hash":rec_cert.head_hash,
-                               "digest":rec_cert.digest(),"sig":rec_cert.sig},
+                               "digest":rec_cert.digest(),"sig":rec_cert.sig,"sig_alg":rec_cert.sig_alg},
                "verdict": {"replay_identical": same,
                            "integrity_ok": check["integrity_ok"],   # split verdict, straight from the verifier
                            "authority_ok": check["authority_ok"],
