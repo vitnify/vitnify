@@ -3,6 +3,24 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.2] — 2026-08-24
+
+Carry the split verdict through to the human-facing viewer, and close a fail-open.
+
+### Fixed
+- **The forensic viewer (`vitnify.viewer`) now carries the split verdict.** It keyed the
+  whole page on one caller-asserted `cert_ok`, so it couldn't tell "integrity verified,
+  authority unestablished" from "signed by an approved runtime", and an honest receipt
+  viewed with no trust root read "certificate failed" — reintroducing, on the page a
+  compliance reviewer actually looks at, the exact conflation 0.4.1 removed from the
+  verifier. The viewer now reads `integrity_ok` / `authority_ok` straight from the
+  verifier's own dict and renders a **three-state authority badge** (verified / rejected /
+  unestablished). The headline claims authority only when a trust root confirmed it.
+- **`integrity_ok` fails CLOSED on a missing check.** It was `all(checks.get(k, True) …)`,
+  which fails *open* — a check silently dropped in a refactor, or a typo in the key tuple,
+  would pass. Mandatory keys now default to `False`, and their coverage is asserted in
+  `tests/test_safe_defaults.py::test_integrity_tuple_is_fully_produced`.
+
 ## [0.4.1] — 2026-08-24
 
 Split the verification verdict, and wire the public evidence artifacts into CI.

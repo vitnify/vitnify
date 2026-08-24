@@ -39,6 +39,13 @@ SUPPORTED_FORMATS = frozenset({"vitnify-receipt v1", FORMAT})
 # between the dict a machine checks and the page a person reads.
 GATED_DECISIONS = frozenset({"allow", "deny"})
 
+# The mandatory integrity checks folded into `integrity_ok` -- always produced by
+# verify_certificate. Module-level so a test can assert the verifier produces every one
+# (a dropped key would otherwise weaken integrity_ok silently). `program_matches` is
+# NOT here: it is optional (only when `program=` is supplied).
+_INTEGRITY_KEYS = ("format", "kinds_known", "root_matches", "head_matches", "count_matches",
+                   "model_digests_match", "sig_valid", "caps_consistent", "fields_match_version")
+
 
 def decision_is_gated(decision) -> bool:
     """True if a tool decision was gated by the capability wall (allow/deny), not merely
@@ -324,10 +331,15 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     #
     # The spec keeps signer pinning OPTIONAL (for integrity); this adds an explicit
     # authority verdict on top, so the two never contradict.
-    _INTEGRITY = ("format", "kinds_known", "root_matches", "head_matches", "count_matches",
-                  "model_digests_match", "sig_valid", "caps_consistent",
-                  "fields_match_version", "program_matches")
-    checks["integrity_ok"] = all(checks.get(k, True) for k in _INTEGRITY)
+    # Mandatory integrity checks -- ALWAYS produced above. A missing one is a bug, so
+    # default to False (fail CLOSED, never open): a check silently dropped in a refactor,
+    # or a typo in this tuple, makes integrity_ok False, and the honest-receipt tests then
+    # fail LOUDLY rather than a hole passing quietly. Coverage is asserted in
+    # tests/test_safe_defaults.py::test_integrity_tuple_is_fully_produced.
+    integ = all(checks.get(k, False) for k in _INTEGRITY_KEYS)
+    if "program_matches" in checks:          # optional: only when `program=` was supplied
+        integ = integ and checks["program_matches"]
+    checks["integrity_ok"] = integ
 
     if pinned_pubkeys is not None:
         authority_ok = bool(sig_valid and cert.sig_alg == "ed25519"

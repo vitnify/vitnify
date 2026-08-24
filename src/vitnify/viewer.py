@@ -96,9 +96,10 @@ def render(run: dict) -> str:
     # the verifier uses (decision_is_gated) -- never taken from the caller's verdict dict.
     # But a claim is only as strong as the evidence under it, so the page asserts
     # containment POSITIVELY only when both hold:
-    #   * the certificate verifies -- otherwise the log is UNVERIFIED and may be the very
+    #   * the log's INTEGRITY holds -- otherwise it is UNVERIFIED and may be the very
     #     forgery the certificate exists to catch, so nothing derived from it can be
-    #     trusted, containment included; and
+    #     trusted, containment included (authority is separate: an honest, integrity-
+    #     verified log with no trust root is still trustworthy for what it shows); and
     #   * a tool was actually gated -- a run that called no tool has nothing to contain,
     #     so "contained" would be vacuously true.
     # verify_certificate reports those cases as containment_enforced=True (a machine
@@ -107,12 +108,33 @@ def render(run: dict) -> str:
     tool_events = [e for e in events if e["kind"] == "tool_call"]
     all_gated = all(decision_is_gated(e["payload"].get("decision")) for e in tool_events)
     blocked = any(str(e["payload"].get("decision", "")).strip().lower() == "deny" for e in tool_events)
-    cert_ok = bool(v.get("cert_ok"))
-    replay_ok = bool(v.get("replay_identical"))
-    containment_proven = cert_ok and bool(tool_events) and all_gated
 
-    if not cert_ok:
-        containment_badge = warn_badge("Containment unverified — certificate failed")
+    # Read the verifier's OWN split verdict (integrity_ok / authority_ok), never a
+    # caller-remapped boolean -- so the page a person reads cannot drift from the dict a
+    # machine checks. The verdict is SPLIT the same way the verifier splits it (0.4.1):
+    #   integrity_ok -- log consistent + validly signed by WHOEVER signed it. Anyone,
+    #                   offline, no secret. This is what makes every DERIVED claim below
+    #                   trustworthy, and it is the base a compliance reviewer verifies.
+    #   authority_ok -- was the signer an APPROVED runtime? True / False / None. None means
+    #                   UNESTABLISHED (no trust root) -- shown as such, NOT as "failed".
+    integrity_ok = bool(v.get("integrity_ok"))
+    authority_ok = v.get("authority_ok")          # True / False / None
+    replay_ok = bool(v.get("replay_identical"))
+    # Containment is trustworthy only on a verified (untampered) log -- that is INTEGRITY,
+    # not authority: a stranger with no trust root can still see the run was contained.
+    containment_proven = integrity_ok and bool(tool_events) and all_gated
+
+    integrity_badge = badge(integrity_ok, "Integrity verified", "Integrity FAILED — tampered")
+
+    if authority_ok is True:
+        authority_badge = badge(True, "Signed by an approved runtime", "")
+    elif authority_ok is False:
+        authority_badge = badge(False, "", "Signer rejected — not on the trust list")
+    else:
+        authority_badge = neutral_badge("Authority unestablished — no trust root supplied")
+
+    if not integrity_ok:
+        containment_badge = warn_badge("Containment unverified — log integrity failed")
     elif not tool_events:
         containment_badge = neutral_badge("No tool calls")            # nothing to contain
     elif not all_gated:
@@ -122,15 +144,16 @@ def render(run: dict) -> str:
     else:
         containment_badge = badge(True, "Containment enforced", "")   # every call gated; none needed blocking
 
-    badges = (containment_badge
-              + badge(replay_ok, "Replay bit-identical", "Replay diverged")
-              + badge(cert_ok, "Certificate verified", "Certificate FAILED"))
+    badges = (integrity_badge + authority_badge + containment_badge
+              + badge(replay_ok, "Replay bit-identical", "Replay diverged"))
 
-    # Headline asserts ONLY what the evidence supports: "contained" needs a verified log
-    # AND a gated tool; "cryptographically certified" needs the signature to check out.
-    claims = (["contained"] if containment_proven else []) \
+    # Headline asserts ONLY what the evidence supports. Integrity is the base claim (anyone
+    # can verify it offline); authority is claimed ONLY when a trust root confirmed it --
+    # an unestablished authority is never dressed up as verified.
+    claims = (["integrity-verified"] if integrity_ok else []) \
+        + (["contained"] if containment_proven else []) \
         + (["replayed bit-for-bit"] if replay_ok else []) \
-        + (["cryptographically certified"] if cert_ok else [])
+        + (["signed by an approved runtime"] if authority_ok is True else [])
     if not claims:
         headline = "Recorded agent run."
     elif len(claims) == 1:

@@ -62,6 +62,8 @@ with open(os.path.join(os.path.dirname(__file__), "..", "last_run.json"), "w") a
                "certificate": {"program_hash":rec_cert.program_hash,"capabilities":rec_cert.capabilities,
                                "event_root":rec_cert.event_root,"head_hash":rec_cert.head_hash,
                                "digest":rec_cert.digest(),"sig":rec_cert.sig},
-               "verdict": {"contained": EXFIL==[], "replay_identical": same, "cert_ok": check["ok"],
+               "verdict": {"replay_identical": same,
+                           "integrity_ok": check["integrity_ok"],   # split verdict, straight from the verifier
+                           "authority_ok": check["authority_ok"],
                            "n_tools": n_tools, "n_deny": n_deny}}, f, indent=2)
 print("\n  wrote last_run.json (for the forensic viewer)")

@@ -16,8 +16,10 @@ from vitnify.viewer import render
 PRIV, PUB = gen_ed25519()
 
 
-def _build(decisions, *, cert_ok=True, replay=True):
-    """A run dict shaped exactly like the demos build (examples/demo_react.py)."""
+def _build(decisions, *, cert_ok=True, replay=True, authority=None):
+    """A run dict shaped exactly like the demos build (examples/demo_react.py).
+    `cert_ok` maps to the log's integrity_ok; `authority` is the split authority verdict
+    (True / False / None-unestablished)."""
     log = EventLog()
     log.append_llm_call("ph", [1, 2, 3], seed=0, model_digest="dd")
     for i, d in enumerate(decisions):
@@ -36,7 +38,7 @@ def _build(decisions, *, cert_ok=True, replay=True):
         "certificate": {"program_hash": cert.program_hash, "capabilities": cert.capabilities,
                         "event_root": cert.event_root, "head_hash": cert.head_hash,
                         "digest": cert.digest(), "sig": cert.sig},
-        "verdict": {"contained": True, "replay_identical": replay, "cert_ok": cert_ok},
+        "verdict": {"replay_identical": replay, "integrity_ok": cert_ok, "authority_ok": authority},
     }
     return run, log
 
@@ -57,7 +59,7 @@ def test_observe_only_headline_does_not_claim_containment():
     assert "contained" not in headline.lower()
     assert "Containment observed — not proven" in html
     # it may still honestly claim the properties that DO hold
-    assert "replayed bit-for-bit" in headline and "cryptographically certified" in headline
+    assert "integrity-verified" in headline and "replayed bit-for-bit" in headline
     # and the warn badge, not a green containment badge
     assert ("warn", "Containment observed — not proven") in _badges(html)
     assert not any(txt.startswith("Injection contained") or txt.startswith("Containment enforced")
@@ -80,6 +82,22 @@ def test_enforced_all_allow_claims_containment():
     assert "Containment observed" not in html
 
 
+def test_authority_badge_is_three_state():
+    """The page carries the SAME split verdict as the machine dict: authority is a
+    three-state badge (verified / rejected / unestablished), never collapsed to pass/fail.
+    An honest receipt viewed with no trust root reads 'unestablished', NOT 'failed' -- the
+    exact conflation the 0.4.1 split removed from the verifier, now removed from the page."""
+    assert ("neutral", "Authority unestablished — no trust root supplied") in \
+        _badges(render(_build(["allow"], authority=None)[0]))
+    assert ("good", "Signed by an approved runtime") in \
+        _badges(render(_build(["allow"], authority=True)[0]))
+    assert ("bad", "Signer rejected — not on the trust list") in \
+        _badges(render(_build(["allow"], authority=False)[0]))
+    # the headline claims authority ONLY when it was actually verified
+    assert "signed by an approved runtime" in _headline(render(_build(["allow"], authority=True)[0]))
+    assert "signed by an approved runtime" not in _headline(render(_build(["allow"], authority=None)[0]))
+
+
 def test_cert_failed_drops_all_derived_claims():
     # If the certificate does not verify, the event log is UNVERIFIED -- it may be the
     # very forgery the certificate exists to catch -- so the page must not claim
@@ -87,10 +105,10 @@ def test_cert_failed_drops_all_derived_claims():
     run, _ = _build(["allow"], cert_ok=False)
     html = render(run)
     headline = _headline(html)
-    assert "cryptographically certified" not in headline
+    assert "integrity-verified" not in headline
     assert "contained" not in headline.lower()
-    assert ("warn", "Containment unverified — certificate failed") in _badges(html)
-    assert ("bad", "Certificate FAILED") in _badges(html)
+    assert ("warn", "Containment unverified — log integrity failed") in _badges(html)
+    assert ("bad", "Integrity FAILED — tampered") in _badges(html)
     assert not any(t in ("Injection contained", "Containment enforced") for _, t in _badges(html))
 
 

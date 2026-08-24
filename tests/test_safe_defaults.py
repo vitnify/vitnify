@@ -66,3 +66,18 @@ def test_verdict_split_distinguishes_unestablished_from_forged():
     t = copy.deepcopy(cert)
     t.capabilities = list(t.capabilities) + ["send_ext"]
     assert verify_certificate(t, log)["integrity_ok"] is False
+
+
+def test_integrity_tuple_is_fully_produced():
+    """Every mandatory key folded into integrity_ok must actually be produced by the
+    verifier. `integrity_ok` now fails CLOSED on a missing key, but assert coverage
+    explicitly too so a dropped/typo'd check is a named failure, not a silent hole."""
+    from vitnify.certificate import _INTEGRITY_KEYS
+    log = EventLog()
+    Broker(["read"], {"read": lambda x: x}, log, allow_cleartext=True).call("read", "x")
+    priv, _ = gen_ed25519()
+    cert, _ = issue_certificate("p", ["read"], log, priv=priv)
+    result = verify_certificate(cert, log, require_authority=False)
+    for k in _INTEGRITY_KEYS:
+        assert k in result, f"integrity check {k!r} not produced by verify_certificate"
+        assert result[k] is True
