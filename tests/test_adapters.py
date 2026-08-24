@@ -118,10 +118,13 @@ def test_mcp_broker_contains_records_and_replays():
         await broker.call_tool("read_secret", {})                       # DENY
         await broker.call_tool("send_external", {"dest": "attacker"})   # DENY
 
-    # record against the (fake) server
+    # record against the (fake) server. allow_cleartext=True: this test asserts
+    # replay BIT-IDENTITY, and redaction uses random per-call salts, so a re-run
+    # produces different commitments by design (a redacted run replays from its
+    # recorded events, not by re-committing). Redaction is covered separately below.
     client = _FakeMCPClient()
     rec_log = EventLog()
-    asyncio.run(scenario(MCPBroker(client, caps, rec_log)))
+    asyncio.run(scenario(MCPBroker(client, caps, rec_log, allow_cleartext=True)))
     assert client.calls == [("read_public", {"ticket_id": "7"})]        # only granted reached server
     n_deny = sum(1 for e in rec_log.events if e.payload.get("decision") == "DENY")
     assert n_deny == 2
@@ -132,8 +135,27 @@ def test_mcp_broker_contains_records_and_replays():
     # replay: re-inject recorded results; the server must never be re-called
     replay_client = _FakeMCPClient()
     rep_log = EventLog()
-    asyncio.run(scenario(MCPBroker(replay_client, caps, rep_log,
+    asyncio.run(scenario(MCPBroker(replay_client, caps, rep_log, allow_cleartext=True,
                                    replay=recorded_mcp_results(rec_log))))
     assert replay_client.calls == []                    # no live re-call on replay
     assert rep_log.chunks() == rec_log.chunks()         # bit-identical
     assert verify_certificate(rec_cert, rep_log, require_authority=False)["ok"]  # certificate verifies against replay
+
+
+def test_mcp_broker_redacts_by_default():
+    # The drop-in MCP path must not leak tool payloads into the receipt -- same
+    # safe-by-default as the core Broker, on allow AND the blocked (deny) call.
+    from vitnify.mcp_adapter import MCPBroker
+    from vitnify.events import EventLog
+    from vitnify.redact import cleartext_leak
+    SSN = "123-45-6789"
+
+    async def scenario(b):
+        await b.call_tool("read_public", {"mrn": SSN})    # ALLOW: PHI in args
+        await b.call_tool("send_secret", {"to": SSN})     # DENY (ungranted): PHI in blocked args
+
+    log = EventLog()
+    asyncio.run(scenario(MCPBroker(_FakeMCPClient(), {"read_public"}, log)))  # default = redact
+    assert cleartext_leak(log, [SSN]) == []               # nothing in the receipt bytes, incl. the block
+    deny = [e for e in log.events if e.payload.get("decision") == "DENY"][0]
+    assert "args_commit" in deny.payload and "args" not in deny.payload

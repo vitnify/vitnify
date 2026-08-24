@@ -9,6 +9,7 @@ reaching the real MCP server.
 """
 from __future__ import annotations
 import hashlib
+import os
 from .events import EventLog, Kind
 
 try:  # optional dependency: needed only to talk to a REAL MCP client/server
@@ -53,28 +54,67 @@ def _extract(result) -> str:
 
 
 class MCPBroker:
-    """Capability wall + record/replay around an MCP client's tool calls."""
-    def __init__(self, client, capabilities, log: EventLog, replay=None):
+    """Capability wall + record/replay around an MCP client's tool calls.
+
+    SAFE BY DEFAULT: like the core :class:`~vitnify.capability.Broker`, this REDACTS --
+    it commits SALTED hashes of args/results into the receipt and keeps the cleartext in
+    an org-held :class:`~vitnify.redact.Vault` (``broker.vault``), so an MCP agent handling
+    PHI/secrets never writes them into the signed record, on allow AND deny. Pass
+    ``allow_cleartext=True`` to record payloads in cleartext (non-sensitive data only).
+    """
+    def __init__(self, client, capabilities, log: EventLog, *, vault=None,
+                 allow_cleartext: bool = False, replay=None):
         self.client = client                 # an MCP Client
         self.caps = set(capabilities)
         self.log = log
         self.replay = replay                 # list of recorded ALLOW results, for replay
+        self.allow_cleartext = allow_cleartext
+        if allow_cleartext:
+            self.vault = None
+        else:
+            from .redact import Vault        # lazy: keeps the optional-dependency import graph clean
+            self.vault = vault if vault is not None else Vault()
 
     async def call_tool(self, name: str, arguments: dict | None = None):
         args = arguments or {}
+        idx = len(self.log)
+
+        if self.allow_cleartext:
+            if name not in self.caps:        # ungranted MCP tool is unreachable
+                self.log.append(Kind.TOOL_CALL, {"tool": name, "args": [args], "decision": "DENY"})
+                return None
+            result = self.replay.pop(0) if self.replay is not None \
+                else _extract(await self.client.call_tool(name, args))
+            self.log.append(Kind.TOOL_CALL, {"tool": name, "args": [args], "decision": "ALLOW",
+                                             "result": result, "result_hash": _rh(result)})
+            return result
+
+        # SAFE DEFAULT: commit SALTED hashes; cleartext goes to the vault, not the receipt.
+        from .redact import _commit
+        asalt = os.urandom(16)
         if name not in self.caps:            # ungranted MCP tool is unreachable
-            self.log.append(Kind.TOOL_CALL, {"tool": name, "args": [args], "decision": "DENY"})
+            self.log.append(Kind.TOOL_CALL,
+                            {"tool": name, "args_commit": _commit(asalt, [args]), "decision": "DENY"})
+            self.vault.put(idx, args_salt=asalt, args=[args])
             return None
-        if self.replay is not None:          # replay: re-inject, never re-call the server
-            result = self.replay.pop(0)
-        else:
-            result = _extract(await self.client.call_tool(name, args))
+        result = self.replay.pop(0) if self.replay is not None \
+            else _extract(await self.client.call_tool(name, args))
+        rsalt = os.urandom(16)
         self.log.append(Kind.TOOL_CALL,
-            {"tool": name, "args": [args], "decision": "ALLOW", "result": result, "result_hash": _rh(result)})
+                        {"tool": name, "args_commit": _commit(asalt, [args]),
+                         "decision": "ALLOW", "result_commit": _commit(rsalt, result)})
+        self.vault.put(idx, args_salt=asalt, args=[args], result_salt=rsalt, result=result)
         return result
 
 
-def recorded_mcp_results(log: EventLog):
-    """Ordered ALLOW results, to feed a replay MCPBroker."""
-    return [e.payload["result"] for e in log.events
-            if e.kind == Kind.TOOL_CALL.value and e.payload.get("decision") == "ALLOW"]
+def recorded_mcp_results(log: EventLog, vault=None):
+    """Ordered ALLOW results, to feed a replay MCPBroker. For a redacted log the cleartext
+    results are in the vault -- pass it; a cleartext log reads them straight from the events."""
+    out = []
+    for e in log.events:
+        if e.kind == Kind.TOOL_CALL.value and e.payload.get("decision") == "ALLOW":
+            if "result" in e.payload:
+                out.append(e.payload["result"])
+            elif vault is not None:
+                out.append(vault.get(e.i)["result"])
+    return out

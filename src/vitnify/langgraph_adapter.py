@@ -79,10 +79,18 @@ def build_react_graph(session, tools_desc: str, tool_names, max_steps: int = 3, 
 class VitniReplayCallback(BaseCallbackHandler):
     """Observability adapter for ANY LangChain/LangGraph agent: records LLM + tool events
     into the session's event log. Record-only (callbacks can't re-inject for replay)."""
-    def __init__(self, session):
+    def __init__(self, session, *, allow_cleartext: bool = False):
         _require_langgraph()
         self.session = session
         self._pending = ("?", "")
+        # SAFE BY DEFAULT: redact observed tool payloads (an observability callback still
+        # must not write PHI/secrets into the signed receipt). Cleartext -> the vault.
+        self.allow_cleartext = allow_cleartext
+        if allow_cleartext:
+            self.vault = None
+        else:
+            from .redact import Vault
+            self.vault = Vault()
 
     def on_llm_end(self, response, **kwargs):
         try:
@@ -97,5 +105,16 @@ class VitniReplayCallback(BaseCallbackHandler):
 
     def on_tool_end(self, output, **kwargs):
         name, inp = self._pending
+        result = str(output)[:200]
+        idx = len(self.session.log)
+        if self.allow_cleartext:
+            self.session.log.append(Kind.TOOL_CALL,
+                {"tool": name, "args": [inp], "decision": "OBSERVED", "result": result})
+            return
+        import os
+        from .redact import _commit
+        asalt, rsalt = os.urandom(16), os.urandom(16)
         self.session.log.append(Kind.TOOL_CALL,
-            {"tool": name, "args": [inp], "decision": "OBSERVED", "result": str(output)[:200]})
+            {"tool": name, "args_commit": _commit(asalt, [inp]),
+             "decision": "OBSERVED", "result_commit": _commit(rsalt, result)})
+        self.vault.put(idx, args_salt=asalt, args=[inp], result_salt=rsalt, result=result)

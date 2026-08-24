@@ -3,6 +3,27 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.5] — 2026-08-24
+
+Extend redaction-by-default to the drop-in adapters — the paths a real MCP/LangGraph
+agent actually uses. Found in a security audit of the surfaces beyond the core verifier.
+
+### Fixed (security)
+- **`MCPBroker` and the LangGraph observability callback now redact by default.** The
+  0.4.0 safe-default (Broker commits *salted* hashes, cleartext to an org-held `Vault`)
+  never reached the adapters: `MCPBroker.call_tool` recorded tool `args`/`result` in
+  **cleartext** on allow AND deny, and `VitniReplayCallback.on_tool_end` recorded
+  cleartext `OBSERVED` events. So a regulated agent wired through the *drop-in* path — the
+  one the integration story sells — leaked PHI/secrets into the signed receipt, the exact
+  contract-blocker fixed for the core Broker. Both now redact; pass `allow_cleartext=True`
+  to opt out (non-sensitive data only). `broker.vault` holds the cleartext.
+
+### Note
+- Redaction uses a fresh random salt per call, so a *redacted* run does not re-run to a
+  bit-identical log — it replays from its **recorded** events, not by re-committing.
+  Deterministic-replay comparisons should use `allow_cleartext=True` (see the adapter
+  tests). `recorded_mcp_results(log, vault=…)` reads redacted results from the vault.
+
 ## [0.4.4] — 2026-08-24
 
 ### Fixed
