@@ -36,3 +36,33 @@ def test_verify_requires_authority_by_default():
     # opt in to authority with a pin, or explicitly ask for integrity-only
     assert verify_certificate(cert, log, pinned_pubkeys=[pub])["ok"] is True
     assert verify_certificate(cert, log, require_authority=False)["ok"] is True
+
+
+def test_verdict_split_distinguishes_unestablished_from_forged():
+    """The verdict is SPLIT: a stranger with no trust root must tell an honest,
+    integrity-verified receipt (authority unestablished) from a tampered or re-signed
+    one -- a bare ok=False is indistinguishable from 'forged', which is the failure mode
+    both 0.3.x and 0.4.0-pre-split fell into (opposite directions)."""
+    import copy
+    log = EventLog()
+    Broker(["read"], {"read": lambda x: x}, log, allow_cleartext=True).call("read", "x")
+    priv, pub = gen_ed25519()
+    cert, _ = issue_certificate("p", ["read"], log, priv=priv)
+
+    # HONEST, no pin: integrity holds; authority UNESTABLISHED (not False); ok=False.
+    r = verify_certificate(cert, log)
+    assert r["integrity_ok"] is True                       # a stranger CAN verify this offline
+    assert r["authority_ok"] is None and "unestablished" in r["authority"]
+    assert r["ok"] is False
+
+    # FORGERY re-signed with an attacker key: integrity still self-consistent, but a
+    # pinned verifier REJECTS the signer -> distinguishable from the honest case.
+    forged = copy.deepcopy(cert)
+    forged.sign_ed25519(gen_ed25519()[0])
+    f = verify_certificate(forged, log, pinned_pubkeys=[pub])
+    assert f["authority_ok"] is False and "rejected" in f["authority"] and f["ok"] is False
+
+    # TAMPERED body: integrity itself breaks -- caught by anyone, no anchor needed.
+    t = copy.deepcopy(cert)
+    t.capabilities = list(t.capabilities) + ["send_ext"]
+    assert verify_certificate(t, log)["integrity_ok"] is False

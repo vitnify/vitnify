@@ -37,3 +37,18 @@ jobs:
       # the adapter tests skip unless the optional [langgraph]/[mcp] extras are present.
       - name: Run tests
         run: python -m pytest
+
+      # The public evidence artifacts run in CI too, so a change (e.g. a default flip)
+      # can never leave them asserting the verifier is broken or reporting a false green.
+      # The adversarial suite exits non-zero if any attack is accepted or a control fails.
+      - name: Adversarial probe suite
+        run: python adversarial/probe_suite.py
+
+      # Model-free example scripts must run clean (the ones needing a GGUF/engine are
+      # excluded — they require VITNI_GGUF + VITNI_RECEIPT_BIN, absent in CI).
+      - name: Example scripts (model-free)
+        run: |
+          for f in redact_demo attack_matrix test_ed25519 test_foundation; do
+            echo "== examples/$f.py =="
+            python "examples/$f.py"
+          done

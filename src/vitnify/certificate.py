@@ -301,41 +301,58 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
         cert.v == "vitnify-receipt v1"
         and any(x is not None for x in (cert.issued_at, cert.nonce, cert.run_id)))
 
-    # Signer AUTHORITY -- SAFE DEFAULT (0.4.0). An embedded key proves integrity and
-    # signer *continuity*, not that an APPROVED runtime signed the receipt: a forger can
-    # re-sign an edited receipt with their OWN key and it self-verifies. So authority must
-    # be anchored -- supply `pinned_pubkeys` (an allow-list); the signer must be ed25519
-    # and on it. With NO anchor the receipt cannot establish authority, so `ok` fails
-    # closed. Pass `require_authority=False` for an integrity-only verdict (continuity, not
-    # authority) -- e.g. an offline consistency check with no trust root. The strongest
-    # anchor pins a TPM/enclave-resident key.
-    if pinned_pubkeys is not None:
-        checks["signer_pinned"] = (
-            sig_valid and cert.sig_alg == "ed25519" and cert.pubkey in set(pinned_pubkeys))
-    elif require_authority:
-        checks["signer_pinned"] = False
-
-    # Program binding. `program_hash` is caller-asserted by default -- issue_certificate
-    # binds whatever string you pass, so "literally anything I type" verifies. Supplying
-    # `program` (the ACTUAL code: a path, iterable of paths, or bytes) recomputes
-    # derive_program_hash and CONFIRMS the receipt names that program, turning a
-    # self-asserted label into a checked binding. A mismatch fails the receipt.
+    # Program binding -- an INTEGRITY check (computable offline, no trust root).
+    # `program_hash` is caller-asserted by default; supplying `program` (the ACTUAL code:
+    # a path, iterable of paths, or bytes) recomputes derive_program_hash and CONFIRMS the
+    # receipt names that program, turning a self-asserted label into a checked binding.
     if program is not None:
         checks["program_matches"] = (cert.program_hash == derive_program_hash(program))
 
-    # Enforcement vs observation. An "allow"/"deny" decision came from the capability
-    # wall -- the call was GATED. Any other value (e.g. "observed" from the record-only
-    # callback adapter) means it was WATCHED, not enforced, so the receipt is a
-    # tamper-evident transcript, not proof containment was applied -- the containment
-    # analogue of an empty model_digests. Reported separately, NOT folded into ok, so a
-    # valid transcript stays valid while a containment PROOF requires ok AND this True.
+    # -------------------------------------------------------------- the verdict, SPLIT
+    # A receipt answers TWO distinct questions, and collapsing them into one boolean is
+    # wrong for somebody either way -- 0.3.x let a forgery read ok=True; 0.4.0 made an
+    # honest receipt read ok=False to a stranger with no trust root, indistinguishable
+    # from tampering. Keep them distinct:
+    #
+    #   integrity_ok -- is this transcript internally consistent and validly signed by
+    #                   WHOEVER signed it (root/head/count, signature, caps, program)?
+    #                   Answerable by ANYONE, offline, with no model and no secret.
+    #   authority_ok -- was the signer an APPROVED runtime? Needs a trust root, so it is
+    #                   True / False / None(unestablished). A stranger offline can never
+    #                   answer it; None must NOT be reported as a bare False that reads as
+    #                   "forged".
+    #
+    # The spec keeps signer pinning OPTIONAL (for integrity); this adds an explicit
+    # authority verdict on top, so the two never contradict.
+    _INTEGRITY = ("format", "kinds_known", "root_matches", "head_matches", "count_matches",
+                  "model_digests_match", "sig_valid", "caps_consistent",
+                  "fields_match_version", "program_matches")
+    checks["integrity_ok"] = all(checks.get(k, True) for k in _INTEGRITY)
+
+    if pinned_pubkeys is not None:
+        authority_ok = bool(sig_valid and cert.sig_alg == "ed25519"
+                            and cert.pubkey in set(pinned_pubkeys))
+    else:
+        authority_ok = None                       # no trust root -> UNESTABLISHED, not False
+    checks["authority_ok"] = authority_ok
+    checks["authority"] = ("verified" if authority_ok is True else
+                           "rejected: signer not on the pinned allow-list" if authority_ok is False else
+                           "unestablished: no trust root supplied (pass pinned_pubkeys)")
+    checks["signer_pinned"] = authority_ok is True    # back-compat alias
+
+    # Enforcement vs observation (separate property, never folded into ok). An "allow"/
+    # "deny" decision was GATED by the wall; any other value ("observed", ...) was merely
+    # WATCHED, so the receipt is a tamper-evident transcript, not proof of containment.
     checks["containment_enforced"] = all(
         decision_is_gated(e.payload.get("decision"))
         for e in log.events
         if e.kind == Kind.TOOL_CALL.value
     )
 
-    checks["ok"] = all(v for k, v in checks.items() if k != "containment_enforced")
+    # `ok` = integrity AND an authorised signer (default). require_authority=False makes
+    # `ok` the integrity-only verdict (authority is still reported, just not required) --
+    # the answer a stranger CAN compute offline.
+    checks["ok"] = bool(checks["integrity_ok"] and (authority_ok is True if require_authority else True))
     return checks
 
 

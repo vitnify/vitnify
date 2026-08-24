@@ -59,7 +59,7 @@ See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/bl
 - **Deterministic replay** — re-run a contested run and get the identical result, bit-for-bit.
 - **Bit-for-bit receipts** — the model's exact computation, bound and signed.
 - **Redaction by default** — the `Broker` commits *salted* hashes of tool payloads instead of cleartext, on allow **and** deny, so PHI/secrets never enter the receipt; cleartext stays in an org-held `Vault`, disclosed one event at a time with an inclusion proof (`vitnify.redact`). Pass `allow_cleartext=True` for the old behaviour (non-sensitive data only).
-- **Offline verification** — anyone verifies with no model, network, or secret.
+- **Offline verification** — anyone verifies a receipt's **integrity** (`integrity_ok`) with no model, network, or secret; **authority** (that an approved runtime signed it) is a separate verdict that needs a pinned trust root.
 - **Drop-in** — wraps existing **LangGraph** and **MCP** agents (`pip install vitnify[langgraph]` / `[mcp]`).
 
 **Two verification levels — and when to use each.** *Level 1 (integrity)* is offline,
@@ -73,12 +73,19 @@ below native inference (~0.45 tok/s vs ~58 for Mistral-7B Q4_K_M on the same Met
 Fleet throughput still scales the normal way — L2 is embarrassingly parallel across
 receipts; a single recompute is simply not something you do on the hot path.
 
-**Signer authority.** `verify_certificate` **requires an authorised signer by default**
-(0.4.0): with no trust anchor it fails closed, because an embedded key proves integrity and
-*continuity*, not that an approved runtime signed the receipt. Pin the trusted signer(s) —
-`verify_authorized(cert, log, pinned_pubkeys=…)` is the production entry point — so a
-re-signed forgery never verifies. Anchor the pinned key in a TPM/enclave for the strongest
-form. Pass `require_authority=False` for an integrity-only verdict (continuity, not authority).
+**The verdict is split** (0.4.1) — a receipt answers two different questions, and a
+verifier reports them separately instead of collapsing them into one boolean:
+
+- **`integrity_ok`** — is the transcript internally consistent and validly signed by
+  *whoever* signed it? Answerable by **anyone, offline, no secret**. Tampering, a forged
+  chain, an ungranted tool, a bad signature all set it `False`.
+- **`authority_ok`** — was the signer an **approved runtime**? Needs a trust root, so it is
+  `True` / `False` / `None` (unestablished when no anchor is supplied — a stranger offline
+  can never answer it, and is *told so* rather than given a bare `False` that looks forged).
+- **`ok`** = `integrity_ok` **and** an authorised signer. Pin the trusted key(s) —
+  `verify_authorized(cert, log, pinned_pubkeys=…)` is the production entry point; anchor it
+  in a TPM/enclave for the strongest form. Pass `require_authority=False` to make `ok` the
+  integrity-only verdict (the answer a stranger *can* compute offline).
 
 **Program binding.** `program_hash` is caller-asserted unless you bind it. Pass
 `derive_program_hash(paths_or_bytes)` at issue time and `verify_certificate(..., program=…)`

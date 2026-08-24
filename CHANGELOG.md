@@ -3,6 +3,36 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.1] — 2026-08-24
+
+Split the verification verdict, and wire the public evidence artifacts into CI.
+
+### Fixed
+- **`verify_certificate` splits its verdict into `integrity_ok` + `authority_ok`.** A
+  receipt answers two distinct questions, and collapsing them into one boolean was wrong
+  either way: 0.3.x let a re-signed forgery read `ok=True`; 0.4.0 made an *honest* receipt
+  read `ok=False` to a stranger with no trust root — indistinguishable from tampering.
+  Now:
+  - `integrity_ok` — internally consistent + validly signed by whoever signed it.
+    **Anyone can compute it offline, no secret.** (This restores the "anyone verifies
+    offline" property and resolves the spec conflict — signer pinning stays *optional*
+    for integrity.)
+  - `authority_ok` — `True` / `False` / `None`. `None` = **unestablished** (no anchor
+    supplied), reported as such, not as a bare `False`.
+  - `ok` = `integrity_ok` **and** an authorised signer (or just `integrity_ok` when
+    `require_authority=False`). `signer_pinned` is kept as a back-compat alias.
+- **The adversarial probe suite reported a false green after the 0.4.0 flip.** Its
+  "blocked" predicate was `ok is False`, which an unpinned verify now returns for *every*
+  receipt — so it printed "12 blocked" even for honest ones, while the controls read
+  "verifier is broken." Each probe now keys on the field its attack actually breaks
+  (`integrity_ok` for tamper/forge; `ok` with a pin for the re-sign case), so the count is
+  real and non-vacuous.
+
+### CI
+- **`adversarial/probe_suite.py` and the model-free example scripts now run in CI.** The
+  0.4.0 default flip left the public proof asserting the verifier was broken because
+  nothing re-ran it; CI now fails if an artifact goes stale.
+
 ## [0.4.0] — 2026-08-24
 
 **Safe by default (BREAKING).** The 0.3.x fixes added a safe path *beside* the unsafe

@@ -21,7 +21,7 @@ def test_pristine_receipt_verifies(signed):
     cert, log = signed[0], signed[1]
     checks = verify_certificate(cert, log, require_authority=False)
     assert checks["ok"] is True
-    assert all(checks.values())
+    assert checks["integrity_ok"] is True         # every integrity check passed
     for k in ("format", "root_matches", "head_matches", "count_matches",
               "model_digests_match", "sig_valid"):
         assert checks[k] is True, k

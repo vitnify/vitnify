@@ -13,9 +13,12 @@ Exit code is 0 iff every attack was blocked. This is the claim the product makes
 about your agents, turned on the product itself — don't trust it, run it. Found a
 new one? Send it to security@vitnify.com; this suite is meant to grow.
 
-F05 is the one documented trust-boundary limit: an *unpinned* self-signed receipt
-verifies by design (an embedded key proves continuity, not authority). The probe
-shows it is blocked once a trusted key is pinned.
+F05 is the one documented trust-boundary limit. The verdict is split: an unpinned
+self-signed receipt has ``integrity_ok=True`` but ``authority_ok=None`` (unestablished
+— an embedded key proves continuity, not that an approved runtime signed it), so a
+re-signed forgery is caught only once a trusted key is pinned (``authority_ok=False``).
+Integrity attacks (tamper/forge the transcript) are caught by anyone offline via
+``integrity_ok``; this suite keys each probe on the field the attack actually breaks.
 """
 import sys
 import copy
@@ -40,9 +43,19 @@ def _honest_log():
 
 
 def _rejected(cert, log, **kw):
-    """True if the verifier REJECTS this receipt — the outcome an attack should get."""
+    """True if the verifier REJECTS this receipt — the outcome an attack should get.
+
+    The verdict is split (0.4.1): a tamper/forge attack on the transcript breaks
+    ``integrity_ok`` (a stranger catches it offline, no trust root); a re-sign attack
+    (F05) is caught only when a trust anchor is supplied, via the full ``ok``. Keying
+    an integrity attack on the authority-dependent ``ok`` would make an HONEST unpinned
+    receipt read 'blocked' too — a false green — so pick the right field per attack.
+    """
     try:
-        return verify_certificate(cert, log, **kw).get("ok") is False
+        v = verify_certificate(cert, log, **kw)
+        if kw.get("pinned_pubkeys") is not None:
+            return v.get("ok") is False            # authority-aware verdict (F05)
+        return v.get("integrity_ok") is False      # integrity attack: rejected offline
     except Exception:
         return True   # a crash is a rejection, not an acceptance
 
@@ -139,8 +152,14 @@ def p_resign_unpinned():
     log.append(Kind.TOOL_CALL, {"tool": "read_docs", "decision": "ALLOW", "result": "x", "result_hash": "h"})
     apriv, _apub = gen_ed25519()                               # attacker's own key
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=apriv)
-    pinned_blocks = verify_certificate(cert, log, pinned_pubkeys=[PUB]).get("ok") is False
-    return pinned_blocks, "blocked with pinning; unpinned verifies by design"
+    pinned = verify_certificate(cert, log, pinned_pubkeys=[PUB])
+    unpinned = verify_certificate(cert, log)   # a stranger with no trust root
+    # With a trust anchor the forged signer is rejected (authority_ok False -> ok False).
+    # With none, integrity still holds (self-consistent) but authority is UNESTABLISHED --
+    # reported as such, NOT as a bare pass or a bare 'forged'.
+    blocked = (pinned.get("ok") is False and pinned.get("authority_ok") is False
+               and unpinned.get("integrity_ok") is True and unpinned.get("authority_ok") is None)
+    return blocked, "pinned: authority rejected; unpinned: integrity verified, authority unestablished"
 
 
 PROBES = [
@@ -184,9 +203,12 @@ def main():
     # positive control: an honest, GATED receipt must verify AND prove containment
     log = _honest_log()
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
-    c = verify_certificate(cert, log)
-    control = c.get("ok") is True and c.get("containment_enforced") is True
-    print(f"  control: honest receipt verifies + proves containment · {'yes' if control else 'NO -- verifier is broken'}")
+    c = verify_certificate(cert, log)   # a stranger: no trust root supplied
+    # An honest receipt VERIFIES to anyone offline (integrity_ok) and proves containment;
+    # authority is separately 'unestablished' without a pin -- NOT a bare False.
+    control = (c.get("integrity_ok") is True and c.get("containment_enforced") is True
+               and c.get("authority_ok") is None)
+    print(f"  control: honest receipt verifies offline + proves containment · {'yes' if control else 'NO -- verifier is broken'}")
 
     # containment distinction: an OBSERVE-ONLY receipt (watched, not gated) is a valid
     # transcript (ok=True) but must NOT claim containment (containment_enforced=False),
@@ -195,7 +217,7 @@ def main():
     olog.append(Kind.TOOL_CALL, {"tool": "read_docs", "decision": "observed", "result": "x"})
     ocert, _ = issue_certificate("prog", ["read_docs"], olog, priv=PRIV)
     oc = verify_certificate(ocert, olog)
-    observe_flagged = oc.get("ok") is True and oc.get("containment_enforced") is False
+    observe_flagged = oc.get("integrity_ok") is True and oc.get("containment_enforced") is False
     print(f"  control: observe-only is valid but NOT contained · {'yes' if observe_flagged else 'NO -- laundering possible'}\n")
 
     sys.exit(1 if (accepted or not control or not observe_flagged) else 0)
