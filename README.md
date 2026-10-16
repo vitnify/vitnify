@@ -3,6 +3,13 @@
 cryptographic, independently-verifiable receipt of what an agent computed, signed and checkable offline,
 that can't be quietly edited or forged after the fact.</p>
 
+<p align="center">
+  <a href="https://pypi.org/project/vitnify/"><img src="https://img.shields.io/pypi/v/vitnify.svg" alt="PyPI"></a>
+  <a href="https://github.com/vitnify/vitnify/actions/workflows/ci.yml"><img src="https://github.com/vitnify/vitnify/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/pypi/pyversions/vitnify.svg" alt="Python versions">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
+</p>
+
 Contain what an agent may do, deterministically reconstruct the model behind every
 decision, and seal the whole run into one **bit-for-bit receipt** anyone can verify
 offline — long after it happened.
