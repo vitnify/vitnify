@@ -1,6 +1,7 @@
 <h1 align="center">Vitnify your agents</h1>
-<p align="center"><strong>Logs tell you what your agent did. Vitnify proves it</strong> — a cryptographic,
-independently-reconstructable record of what an agent computed and did.</p>
+<p align="center"><strong>Logs tell you what your agent did. Vitnify makes that record tamper-evident</strong> — a
+cryptographic, independently-verifiable receipt of what an agent computed, signed and checkable offline,
+that can't be quietly edited or forged after the fact.</p>
 
 Contain what an agent may do, deterministically reconstruct the model behind every
 decision, and seal the whole run into one **bit-for-bit receipt** anyone can verify
@@ -8,10 +9,12 @@ offline — long after it happened.
 
 > **vitnify** *(v.)* — to turn an agent run into a receipt anyone can reproduce and verify, offline.
 
-vitnify isn't detection. It gives you the primitives to prove exactly what an agent
-did: a `vitnify-receipt v2` binds the model's computation, the granted capabilities,
-every tool call and result, the entropy, and the order into a single ed25519-signed,
-self-verifying object.
+vitnify isn't detection. It gives you the primitives to make an agent run's record
+tamper-evident and verifiable offline: a `vitnify-receipt v2` binds the model's computation,
+the granted capabilities, every tool call and result, the entropy, and the order into a single
+ed25519-signed, self-verifying object — so the record can't be altered or forged after the fact.
+It does **not** prove the recorded actions reflect reality against a dishonest issuer — closing
+that needs hardware-attested capture (see the trust boundary below).
 
 ## Install
 
