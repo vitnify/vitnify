@@ -385,4 +385,8 @@ def verify_authorized(cert: ExecutionCertificate, log: EventLog, pinned_pubkeys,
     if not pinned_pubkeys:
         return {"ok": False, "signer_pinned": False, "containment_enforced": False,
                 "error": "no pinned signer allow-list: signer authority cannot be established"}
-    return verify_certificate(cert, log, pinned_pubkeys=pinned_pubkeys, **kw)
+    # The authorized entry point ALWAYS requires authority -- a forwarded
+    # require_authority=False must never waive it, or a mismatching pin would still report
+    # ok=True. Force it on regardless of what the caller passed.
+    kw.pop("require_authority", None)
+    return verify_certificate(cert, log, pinned_pubkeys=pinned_pubkeys, require_authority=True, **kw)
