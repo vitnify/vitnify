@@ -67,7 +67,7 @@ def verify_level2(log, engine, steps):
 
     Returns one dict per `llm_call` step -- {"ok": bool, "reason": str, ...} -- where
     `reason` is "reproduced" | "prompt_mismatch" | "wrong_weights" | "regime_mismatch"
-    | "digest_mismatch".
+    | "digest_mismatch" | "tokens_mismatch".
     """
     from .events import Kind
     llm = [e for e in log.events
@@ -94,6 +94,15 @@ def verify_level2(log, engine, steps):
         elif run.get("model_digest") != p["model_digest"]:
             out.append({"ok": False, "reason": "digest_mismatch",
                         "receipt": p["model_digest"], "engine": run.get("model_digest")})
+        elif (p.get("tokens") is not None and run.get("tokens") is not None
+              and list(run["tokens"]) != list(p["tokens"])):
+            # The digest reproduced, but the receipt's READABLE output tokens disagree with what
+            # the engine just recomputed -- the human-visible transcript was altered while the
+            # digest was left intact. Bind the readable tokens to the verified computation, or a
+            # tampered `tokens`/`text` field passes as "reproduced" (Codex audit probe: recorded
+            # [9] vs recomputed [7] returned reproduced).
+            out.append({"ok": False, "reason": "tokens_mismatch",
+                        "receipt": p.get("tokens"), "engine": run.get("tokens")})
         else:
             out.append({"ok": True, "reason": "reproduced"})
     return out
