@@ -63,6 +63,27 @@ See the [receipt format spec](https://github.com/vitnify/vitnify-receipt-spec/bl
 (canonical — this repo does not vendor a copy, so the two can't drift), and
 `examples/demo_receipt_e2e.py` for the full loop.
 
+## Attack it yourself
+
+`verify_certificate()` is the trust boundary of this project. Don't take our word that it
+holds, attack it. The adversarial suite forges a receipt for every class of attack we know
+and asserts the **shipped** verifier rejects each one. It imports whatever `vitnify` you
+have installed, so you can point it at any release:
+
+```sh
+pip install vitnify
+python adversarial/probe_suite.py
+```
+
+```
+  12 attacks attempted · 0 accepted · 12 blocked
+  control: honest receipt verifies offline + proves containment · yes
+```
+
+Point it at an old release (`pip install vitnify==0.1.0`) to watch attacks land, and the
+current one to watch them bounce. Find one that gets through and that is the finding we
+care about most: security@vitnify.com.
+
 ## What you get
 
 - **Capability containment** — ungranted tools are structurally unreachable.
@@ -124,6 +145,14 @@ at verify time to make the receipt bind the *actual* program, not a label.
 
 The deterministic engine is [`vitni-tensor`](https://github.com/vitnify/vitni-tensor);
 the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it).
+
+## Cite
+
+If you use vitnify or reference the method, cite the paper:
+
+> J. N. Pijeau, "Reconstructable Execution Certificates for Tool-Using AI Agents," preprint, 2026. https://vitnify.com/Vitnify-Paper.pdf
+
+A machine-readable [`CITATION.cff`](CITATION.cff) is in the repo, so GitHub shows a "Cite this repository" button with ready-made BibTeX.
 
 ## License
 
