@@ -3,6 +3,26 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.7] — 2026-10-17
+
+Two soundness fixes in the verifier, the project's trust boundary. Found in an
+adversarial audit of the verify paths.
+
+### Fixed (security)
+- **Level-2 recompute now binds the receipt's readable tokens to the recomputed output.**
+  `verify_level2` checked the `model_digest` but not the `tokens`/`text` the receipt
+  presents, so a transcript whose readable tokens were altered while the digest was left
+  intact passed as `reproduced`. It now returns `tokens_mismatch` when the recomputed
+  tokens disagree with the recorded ones (`src/vitnify/engine.py`).
+- **`verify_authorized` can no longer have its authority check waived.** A caller passing
+  `require_authority=False` through to the authorized entry point could make a receipt with
+  a mismatching pin still report `ok=True`. `verify_authorized` now forces
+  `require_authority=True` regardless of what the caller passes (`src/vitnify/certificate.py`).
+
+Also in this release: the README scopes the top-line claim to what is built
+(tamper-evident + verifiable), adds PyPI/CI badges and the Old Norse *vitni* etymology,
+and an "attack it yourself" section pointing at the adversarial probe suite.
+
 ## [0.4.6] — 2026-08-24
 
 > 0.4.5 was tagged but never published: a release-script bug truncated
