@@ -14,7 +14,7 @@ Contain what an agent may do, deterministically reconstruct the model behind eve
 decision, and seal the whole run into one **bit-for-bit receipt** anyone can verify
 offline — long after it happened.
 
-> **vitnify** *(v.)* — to turn an agent run into a receipt anyone can reproduce and verify, offline.
+> **vitnify** *(v.)*: to turn an agent run into a receipt anyone can reproduce and verify, offline. From Old Norse *vitni*, a sworn witness.
 
 vitnify isn't detection. It gives you the primitives to make an agent run's record
 tamper-evident and verifiable offline: a `vitnify-receipt v2` binds the model's computation,
