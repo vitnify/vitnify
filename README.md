@@ -118,7 +118,10 @@ verifier reports them separately instead of collapsing them into one boolean:
 - **`ok`** = `integrity_ok` **and** an authorised signer. Pin the trusted key(s) —
   `verify_authorized(cert, log, pinned_pubkeys=…)` is the production entry point; anchor it
   in a TPM/enclave for the strongest form. Pass `require_authority=False` to make `ok` the
-  integrity-only verdict (the answer a stranger *can* compute offline).
+  integrity-only verdict (the answer a stranger *can* compute offline). To run your own
+  hardware-anchored signer (key generated in a TEE/TPM, then pinned), see
+  [Bring your own trust root](https://github.com/vitnify/vitnify-receipt-spec/blob/main/vitnify-receipt-v2.md#bring-your-own-trust-root-hardware-anchored-signer)
+  in the receipt spec.
 
 **Program binding.** `program_hash` is caller-asserted unless you bind it. Pass
 `derive_program_hash(paths_or_bytes)` at issue time and `verify_certificate(..., program=…)`
