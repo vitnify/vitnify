@@ -78,6 +78,7 @@ python adversarial/probe_suite.py
 ```
   12 attacks · 12 cleanly blocked · 0 accepted · 0 errored
   control: honest receipt verifies offline + proves containment · yes
+  robustness: 9 malformed inputs · 9 fail-closed · 0 accepted · 0 fragile
 ```
 
 Point it at an old release (`pip install vitnify==0.1.0`) to watch attacks land, and the

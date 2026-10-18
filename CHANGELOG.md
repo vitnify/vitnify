@@ -3,6 +3,30 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.8] — 2026-10-18
+
+Harden the verifier against malformed input, and extend the adversarial suite to prove it.
+Prompted by an external review of `adversarial/probe_suite.py`.
+
+### Fixed (security)
+- **The verifier now fails closed on malformed input instead of raising.** A hostile or
+  buggy producer could hand `verify_certificate` a receipt with wrong-typed or missing
+  fields (`events`, an event payload, or `model_digests` set to `None` or a string) and get
+  an uncaught `TypeError`/`AttributeError` rather than a verdict. A crafted receipt could
+  then crash the caller's verification path instead of failing closed. `verify_certificate`
+  now wraps the Level-1 logic (`_verify_level1`) and converts any unexpected error into a
+  non-verifying verdict (`integrity_ok=False`, `ok=False`, with an `error` note). A bug on a
+  VALID receipt still surfaces loudly via the honest-receipt controls. The known DoS vectors
+  (deep nesting, multi-MB payloads, tens of thousands of events) already returned a verdict
+  without hanging.
+
+### Changed
+- **`adversarial/probe_suite.py`: a verifier crash is now `errored`, not `blocked`.** A new
+  robustness section feeds malformed input and asserts the verifier fails closed (`refused`)
+  rather than accepting garbage or crashing/hanging (`fragile`); the run fails on any
+  `accepted`, `errored`, or `fragile` outcome. Addresses the review finding that the old
+  helper counted a crash as a successful block.
+
 ## [0.4.7] — 2026-10-17
 
 Two soundness fixes in the verifier, the project's trust boundary. Found in an

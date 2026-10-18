@@ -22,6 +22,7 @@ Integrity attacks (tamper/forge the transcript) are caught by anyone offline via
 """
 import sys
 import copy
+import signal
 import importlib.metadata as _meta
 
 from vitnify.events import EventLog, Kind
@@ -183,6 +184,69 @@ PROBES = [
 ]
 
 
+# ---- robustness probes: malformed OBJECT input must FAIL CLOSED, never crash ---------
+# The attacks above are WELL-FORMED forgeries; for those the verifier must return a
+# rejection verdict (a raise counts as "errored", not "blocked"). These feed STRUCTURALLY
+# MALFORMED input -- wrong-typed or missing fields, plus the pathological sizes a DoS
+# would use -- and assert the verifier fails closed WITH a verdict: it must not return a
+# PASS ("accepted"), and must not raise, hang, or exhaust memory ("fragile"). A clean
+# fail-closed verdict is "refused".
+
+def _honest_cert():
+    log = _honest_log()
+    cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
+    return cert, log
+
+
+def _deep(n):
+    d = {}
+    cur = d
+    for _ in range(n):
+        cur["x"] = {}
+        cur = cur["x"]
+    return d
+
+
+class _Timeout(Exception):
+    pass
+
+
+def _on_alarm(signum, frame):
+    raise _Timeout()
+
+
+def _robust(mutate, timeout=5):
+    cert, log = _honest_cert()
+    mutate(cert, log)
+    use_alarm = hasattr(signal, "SIGALRM")
+    if use_alarm:
+        signal.signal(signal.SIGALRM, _on_alarm)
+        signal.alarm(timeout)
+    try:
+        v = verify_certificate(cert, log)
+    except _Timeout:
+        return "fragile"            # hung -- the DoS the critique warned about
+    except Exception:
+        return "fragile"            # raised on malformed input -- not fail-closed
+    finally:
+        if use_alarm:
+            signal.alarm(0)
+    return "accepted" if (v.get("integrity_ok") is True or v.get("ok") is True) else "refused"
+
+
+ROBUST = [
+    ("events = None",            lambda c, l: setattr(l, "events", None)),
+    ("events = 'string'",        lambda c, l: setattr(l, "events", "notalist")),
+    ("event.payload = None",     lambda c, l: setattr(l.events[1], "payload", None)),
+    ("event.payload = 'string'", lambda c, l: setattr(l.events[1], "payload", "x")),
+    ("model_digests = None",     lambda c, l: setattr(c, "model_digests", None)),
+    ("capabilities = None",      lambda c, l: setattr(c, "capabilities", None)),
+    ("payload nested x3000",     lambda c, l: l.events[1].payload.__setitem__("d", _deep(3000))),
+    ("payload 3 MB string",      lambda c, l: l.events[1].payload.__setitem__("b", "x" * 3_000_000)),
+    ("30k events appended",      lambda c, l: [l.append(Kind.AGENT_STEP, {"i": i}) for i in range(30000)]),
+]
+
+
 def main():
     try:
         ver = _meta.version("vitnify")
@@ -229,9 +293,33 @@ def main():
     ocert, _ = issue_certificate("prog", ["read_docs"], olog, priv=PRIV)
     oc = verify_certificate(ocert, olog)
     observe_flagged = oc.get("integrity_ok") is True and oc.get("containment_enforced") is False
-    print(f"  control: observe-only is valid but NOT contained · {'yes' if observe_flagged else 'NO -- laundering possible'}\n")
+    print(f"  control: observe-only is valid but NOT contained · {'yes' if observe_flagged else 'NO -- laundering possible'}")
 
-    sys.exit(1 if (accepted or errored or not control or not observe_flagged) else 0)
+    # robustness: malformed OBJECT input must fail closed WITH a verdict, never crash/hang
+    print()
+    print(f"  {'':<5}{'robustness (malformed input)':<30}result")
+    print("  " + "-" * 56)
+    rob_accepted = rob_fragile = 0
+    for label, mutate in ROBUST:
+        try:
+            r = _robust(mutate)
+        except Exception:
+            r = "fragile"
+        if r == "accepted":
+            rob_accepted += 1
+        elif r == "fragile":
+            rob_fragile += 1
+        mark = {"refused": "fail-closed",
+                "accepted": ">>> ACCEPTED <<<",
+                "fragile": ">>> FRAGILE <<<"}[r]
+        print(f"  {'rob':<5}{label:<30}{mark}")
+    print("  " + "-" * 56)
+    nr = len(ROBUST)
+    print(f"\n  robustness: {nr} malformed inputs · {nr - rob_accepted - rob_fragile} fail-closed · "
+          f"{rob_accepted} accepted · {rob_fragile} fragile\n")
+
+    sys.exit(1 if (accepted or errored or rob_accepted or rob_fragile
+                   or not control or not observe_flagged) else 0)
 
 
 if __name__ == "__main__":

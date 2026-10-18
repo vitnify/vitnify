@@ -230,7 +230,35 @@ def verify_certificate(cert: ExecutionCertificate, log: EventLog, key: bytes | N
     the receipt was signed by a key you trust. (Level 2 -- recomputing each
     model_digest through vitni-tensor -- is a separate step that additionally
     needs the model weights.)
+
+    Fails closed on MALFORMED input too. A hostile or buggy producer can hand the
+    verifier a receipt with wrong-typed or missing fields (``events``, a payload, or
+    ``model_digests`` set to None or a string, and so on); the verifier must return a
+    non-verifying verdict rather than raise. Any unexpected error during verification is
+    caught and reported as ``integrity_ok=False`` / ``ok=False`` with an ``error`` note,
+    so a crafted receipt cannot crash the verifier instead of failing. A bug on a VALID
+    receipt still surfaces loudly: the honest-receipt controls assert ``integrity_ok=True``.
     """
+    try:
+        return _verify_level1(cert, log, key, pinned_pubkeys, program, require_authority)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        authority_ok = False if pinned_pubkeys is not None else None
+        return {
+            "format": False, "kinds_known": False, "root_matches": False,
+            "head_matches": False, "count_matches": False, "model_digests_match": False,
+            "sig_valid": False, "caps_consistent": False, "fields_match_version": False,
+            "integrity_ok": False, "authority_ok": authority_ok,
+            "authority": ("rejected: signer not on the pinned allow-list" if authority_ok is False
+                          else "unestablished: no trust root supplied (pass pinned_pubkeys)"),
+            "signer_pinned": False, "containment_enforced": False, "ok": False,
+            "error": f"malformed receipt: {type(e).__name__}",
+        }
+
+
+def _verify_level1(cert: ExecutionCertificate, log: EventLog, key: bytes | None = None,
+                   pinned_pubkeys=None, program=None, require_authority: bool = True) -> dict:
     # An empty event log has no Merkle commitment, so no legitimately issued receipt
     # carries one (issue_certificate commits >=1 event). A verifier must FAIL CLOSED on
     # such degenerate/hostile input, never crash: compute the root only when there are
