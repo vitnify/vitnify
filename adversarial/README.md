@@ -12,7 +12,11 @@ pip install vitnify            # or ==0.1.0 to watch older ones fail
 python adversarial/probe_suite.py
 ```
 
-Exit code `0` means every attack was blocked and an honest receipt still verifies.
+Exit code `0` means every attack was **cleanly rejected** (the verifier returned a
+rejection verdict, not a crash) and an honest receipt still verifies. A verifier that
+*raises* on an attack is reported as `errored`, not `blocked`, and fails the run: for a
+well-formed forgery the verifier must fail closed with a verdict, and a crash is a
+separate robustness concern.
 
 The suite covers unsigned and keyless-HMAC receipts, out-of-policy tool calls,
 edited / deleted / reordered events, swapped model digests, rewritten chain pointers,
