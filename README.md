@@ -76,7 +76,7 @@ python adversarial/probe_suite.py
 ```
 
 ```
-  12 attacks attempted · 0 accepted · 12 blocked
+  12 attacks · 12 cleanly blocked · 0 accepted · 0 errored
   control: honest receipt verifies offline + proves containment · yes
 ```
 

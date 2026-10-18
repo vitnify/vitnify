@@ -9,7 +9,7 @@ get through:
     pip install vitnify==0.2.4
     python adversarial/probe_suite.py
 
-Exit code is 0 iff every attack was blocked. This is the claim the product makes
+Exit code is 0 iff every attack was cleanly rejected (a verdict, never a crash). This is the claim the product makes
 about your agents, turned on the product itself — don't trust it, run it. Found a
 new one? Send it to security@vitnify.com; this suite is meant to grow.
 
@@ -42,22 +42,27 @@ def _honest_log():
     return log
 
 
-def _rejected(cert, log, **kw):
-    """True if the verifier REJECTS this receipt — the outcome an attack should get.
+def _verdict(cert, log, **kw):
+    """Classify how the shipped verifier treats this receipt, as one of three outcomes:
 
-    The verdict is split (0.4.1): a tamper/forge attack on the transcript breaks
-    ``integrity_ok`` (a stranger catches it offline, no trust root); a re-sign attack
-    (F05) is caught only when a trust anchor is supplied, via the full ``ok``. Keying
-    an integrity attack on the authority-dependent ``ok`` would make an HONEST unpinned
-    receipt read 'blocked' too — a false green — so pick the right field per attack.
+    - ``"rejected"`` -- the verifier returned a clean rejection verdict. What an attack
+      should get.
+    - ``"accepted"`` -- the verifier returned a PASS verdict for a forgery. A real failure.
+    - ``"errored"``  -- the verifier RAISED instead of returning a verdict. A crash is not a
+      clean rejection: for a well-formed forgery the verifier must fail closed WITH a verdict.
+      An exception is surfaced on its own and never counted as "blocked".
+
+    The verdict is split (0.4.1): a tamper/forge attack breaks ``integrity_ok`` (a stranger
+    catches it offline, no trust root); a re-sign attack is caught only with a trust anchor,
+    via the full ``ok``. So key an integrity attack on ``integrity_ok`` and an authority
+    attack on ``ok`` (pass ``pinned_pubkeys``).
     """
     try:
         v = verify_certificate(cert, log, **kw)
-        if kw.get("pinned_pubkeys") is not None:
-            return v.get("ok") is False            # authority-aware verdict (F05)
-        return v.get("integrity_ok") is False      # integrity attack: rejected offline
     except Exception:
-        return True   # a crash is a rejection, not an acceptance
+        return "errored"
+    field = "ok" if kw.get("pinned_pubkeys") is not None else "integrity_ok"
+    return "rejected" if v.get(field) is False else "accepted"
 
 
 # ---- each probe returns (blocked: bool, note: str) -------------------------------
@@ -66,34 +71,34 @@ def p_unsigned():
     log = EventLog()
     log.append(Kind.TOOL_CALL, {"tool": "wire_transfer", "decision": "ALLOW", "result": "SENT"})
     cert, _ = issue_certificate("prog", ["wire_transfer"], log)   # no priv/key -> sig_alg="none"
-    return _rejected(cert, log), 'sig_alg="none"'
+    return _verdict(cert, log), 'sig_alg="none"'
 
 
 def p_keyless_hmac():
     log = _honest_log()
     cert, _ = issue_certificate("prog", ["read_docs"], log, key=b"shared-secret")
-    return _rejected(cert, log), "verifier holds no key"        # no key passed to verify
+    return _verdict(cert, log), "verifier holds no key"        # no key passed to verify
 
 
 def p_out_of_policy_tool():
     log = EventLog()
     log.append(Kind.TOOL_CALL, {"tool": "wire_transfer", "decision": "ALLOW", "result": "x", "result_hash": "h"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
-    return _rejected(cert, log), "wire_transfer not granted"
+    return _verdict(cert, log), "wire_transfer not granted"
 
 
 def p_edit_event():
     log = _honest_log()
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
     log.events[1].payload["decision"] = "DENY"                  # flip after signing
-    return _rejected(cert, log), "flip ALLOW->DENY post-sign"
+    return _verdict(cert, log), "flip ALLOW->DENY post-sign"
 
 
 def p_delete_event():
     log = _honest_log()
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
     log.events.pop()
-    return _rejected(cert, log), "truncate the transcript"
+    return _verdict(cert, log), "truncate the transcript"
 
 
 def p_reorder_events():
@@ -101,7 +106,7 @@ def p_reorder_events():
     log.append(Kind.AGENT_STEP, {"state": "x"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
     log.events[0], log.events[1] = log.events[1], log.events[0]
-    return _rejected(cert, log), "swap event order"
+    return _verdict(cert, log), "swap event order"
 
 
 def p_edit_model_digest():
@@ -109,14 +114,14 @@ def p_edit_model_digest():
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
     bad = copy.deepcopy(cert)
     bad.model_digests = ["0" * 64]                              # claim a computation not in the log
-    return _rejected(bad, log), "swap model_digests"
+    return _verdict(bad, log), "swap model_digests"
 
 
 def p_tamper_chain():
     log = _honest_log()
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
     log.events[1].prev = "00" * 32                             # rewrite a hash-chain link
-    return _rejected(cert, log), "rewrite prev pointer"
+    return _verdict(cert, log), "rewrite prev pointer"
 
 
 def p_backdate_v1():
@@ -130,21 +135,21 @@ def p_backdate_v1():
                                 model_digests=log.model_digests())
     cert.v, cert.sig, cert.sig_alg, cert.pubkey = "vitnify-receipt v1", sig, "ed25519", PUB
     cert.issued_at = "2019-01-01T00:00:00Z"                    # forge a field v1 never signed
-    return _rejected(cert, log), "backdated issued_at on v1"
+    return _verdict(cert, log), "backdated issued_at on v1"
 
 
 def p_decision_string():
     log = EventLog()
     log.append(Kind.TOOL_CALL, {"tool": "wire_transfer", "decision": "PERMIT", "result": "x"})
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
-    return _rejected(cert, log), 'decision="PERMIT"'
+    return _verdict(cert, log), 'decision="PERMIT"'
 
 
 def p_relabel_kind():
     log = EventLog()
     log.append("TOOL_CALL", {"tool": "wire_transfer", "decision": "ALLOW", "result": "x"})  # unknown kind
     cert, _ = issue_certificate("prog", ["read_docs"], log, priv=PRIV)
-    return _rejected(cert, log), 'kind="TOOL_CALL"'
+    return _verdict(cert, log), 'kind="TOOL_CALL"'
 
 
 def p_resign_unpinned():
@@ -157,9 +162,9 @@ def p_resign_unpinned():
     # With a trust anchor the forged signer is rejected (authority_ok False -> ok False).
     # With none, integrity still holds (self-consistent) but authority is UNESTABLISHED --
     # reported as such, NOT as a bare pass or a bare 'forged'.
-    blocked = (pinned.get("ok") is False and pinned.get("authority_ok") is False
-               and unpinned.get("integrity_ok") is True and unpinned.get("authority_ok") is None)
-    return blocked, "pinned: authority rejected; unpinned: integrity verified, authority unestablished"
+    good = (pinned.get("ok") is False and pinned.get("authority_ok") is False
+            and unpinned.get("integrity_ok") is True and unpinned.get("authority_ok") is None)
+    return ("rejected" if good else "accepted"), "pinned: authority rejected; unpinned: integrity verified, authority unestablished"
 
 
 PROBES = [
@@ -187,18 +192,24 @@ def main():
     print(f"  {'id':<5}{'attack':<30}result")
     print("  " + "-" * 56)
     accepted = 0
+    errored = 0
     for pid, name, fn in PROBES:
         try:
-            blocked, note = fn()
+            outcome, note = fn()
         except Exception as e:
-            blocked, note = True, f"raised {type(e).__name__}"
-        if not blocked:
+            outcome, note = "errored", f"raised {type(e).__name__}"
+        if outcome == "accepted":
             accepted += 1
-        status = "blocked" if blocked else ">>> ACCEPTED <<<"
-        print(f"  {pid:<5}{name:<30}{status:<16}({note})")
+        elif outcome == "errored":
+            errored += 1
+        label = {"rejected": "blocked",
+                 "accepted": ">>> ACCEPTED <<<",
+                 "errored":  ">>> ERRORED <<<"}.get(outcome, outcome)
+        print(f"  {pid:<5}{name:<30}{label:<16}({note})")
     print("  " + "-" * 56)
     n = len(PROBES)
-    print(f"\n  {n} attacks attempted · {accepted} accepted · {n - accepted} blocked")
+    blocked = n - accepted - errored
+    print(f"\n  {n} attacks · {blocked} cleanly blocked · {accepted} accepted · {errored} errored")
 
     # positive control: an honest, GATED receipt must verify AND prove containment
     log = _honest_log()
@@ -220,7 +231,7 @@ def main():
     observe_flagged = oc.get("integrity_ok") is True and oc.get("containment_enforced") is False
     print(f"  control: observe-only is valid but NOT contained · {'yes' if observe_flagged else 'NO -- laundering possible'}\n")
 
-    sys.exit(1 if (accepted or not control or not observe_flagged) else 0)
+    sys.exit(1 if (accepted or errored or not control or not observe_flagged) else 0)
 
 
 if __name__ == "__main__":
