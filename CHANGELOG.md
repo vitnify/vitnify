@@ -3,6 +3,16 @@
 All notable changes to `vitnify` are documented here.
 This project follows [Semantic Versioning](https://semver.org).
 
+## [0.4.9] — 2026-10-18
+
+Docs only — no code change; the verifier is byte-for-byte 0.4.8.
+
+- **README:** note the deterministic GPU backends (Apple **Metal** + NVIDIA **CUDA**, both
+  bit-identical to the CPU) and the two numeric regimes. Every receipt binds its regime:
+  `vitni-regime-2` (shipped, anchored, float activations) is what the SDK verifies against
+  today; a reserved `regime-3` (int8 activations, deterministic on GPU integer tensor cores)
+  is distinguished by the bound regime string. Links `vitni-tensor/docs/regimes.md`.
+
 ## [0.4.8] — 2026-10-18
 
 Harden the verifier against malformed input, and extend the adversarial suite to prove it.
