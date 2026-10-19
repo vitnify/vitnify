@@ -149,6 +149,14 @@ at verify time to make the receipt bind the *actual* program, not a label.
 
 The deterministic engine is [`vitni-tensor`](https://github.com/vitnify/vitni-tensor);
 the `vitni-receipt` binary is the model backend (point `VITNI_RECEIPT_BIN` at it).
+The engine also has **GPU backends** (Apple Metal, NVIDIA CUDA) that reproduce the
+**identical** receipt digest as the CPU — determinism now spans CPU vendors, ISAs, *and*
+GPU vendors — so recompute can run far above the CPU figure above while staying
+bit-exact. Every receipt binds a **numeric regime**: `vitni-regime-2` (the shipped,
+anchored default, float activations) is what the SDK verifies against today; a reserved
+`regime-3` (int8 activations, deterministic on GPU integer tensor cores) exists for
+GPU-at-scale throughput and is distinguished by the bound regime string. See
+[vitni-tensor/docs/regimes.md](https://github.com/vitnify/vitni-tensor/blob/main/docs/regimes.md).
 
 ## Cite
 
